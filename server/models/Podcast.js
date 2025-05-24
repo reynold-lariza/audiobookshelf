@@ -142,7 +142,7 @@ class Podcast extends Model {
         itunesId: DataTypes.STRING,
         itunesArtistId: DataTypes.STRING,
         language: DataTypes.STRING,
-	      podcastFilenameFormat: DataTypes.STRING,
+	podcastFilenameFormat: DataTypes.STRING,
         podcastType: DataTypes.STRING,
         explicit: DataTypes.BOOLEAN,
 
