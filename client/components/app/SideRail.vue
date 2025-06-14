@@ -20,6 +20,12 @@
         <div v-show="isPodcastLatestPage" class="h-full w-0.5 bg-yellow-400 absolute top-0 left-0" />
       </nuxt-link>
 
+      <nuxt-link v-if="isPodcastLibrary" :to="`/library/${currentLibraryId}/calendar`" class="w-full h-20 flex flex-col items-center justify-center text-white border-b border-primary border-opacity-70 hover:bg-primary cursor-pointer relative" :class="isCalendarPage ? 'bg-primary bg-opacity-80' : 'bg-bg bg-opacity-60'">
+        <span class="material-symbols text-2xl">&#xe935;</span>
+        <p class="pt-1 text-center leading-4" style="font-size: 0.9rem">{{ $strings.ButtonCalendar }}</p>
+        <div v-show="isCalendarPage" class="h-full w-0.5 bg-yellow-400 absolute top-0 left-0" />
+      </nuxt-link>
+
       <nuxt-link :to="`/library/${currentLibraryId}/bookshelf`" class="w-full h-20 flex flex-col items-center justify-center text-white border-b border-primary/70 hover:bg-primary cursor-pointer relative" :class="showLibrary ? 'bg-primary/80' : 'bg-bg/60'">
         <span class="material-symbols text-2xl">import_contacts</span>
 
@@ -169,6 +175,9 @@ export default {
     },
     isPodcastLatestPage() {
       return this.$route.name === 'library-library-podcast-latest'
+    },
+    isCalendarPage() {
+      return this.$route.name === 'library-library-calendar'
     },
     homePage() {
       return this.$route.name === 'library-library'

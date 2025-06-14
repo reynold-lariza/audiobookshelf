@@ -60,6 +60,8 @@ class ServerSettings {
     /** @type {boolean} If true, the Ratings page link is shown in the library sidebar */
     this.showReviewsInSidebar = true
 
+    this.calendarFirstDayOfWeek = 0
+
     this.logLevel = Logger.logLevel
 
     this.version = packageJson.version
@@ -130,6 +132,8 @@ class ServerSettings {
 
     this.enableReviews = settings.enableReviews !== false
     this.showReviewsInSidebar = settings.showReviewsInSidebar !== false
+
+    this.calendarFirstDayOfWeek = settings.calendarFirstDayOfWeek !== undefined ? Number(settings.calendarFirstDayOfWeek) : 0
     this.logLevel = settings.logLevel || Logger.logLevel
     this.version = settings.version || null
     this.buildNumber = settings.buildNumber || 0 // Added v2.4.5
@@ -244,6 +248,7 @@ class ServerSettings {
       allowedOrigins: this.allowedOrigins,
       enableReviews: this.enableReviews,
       showReviewsInSidebar: this.showReviewsInSidebar,
+      calendarFirstDayOfWeek: this.calendarFirstDayOfWeek,
       logLevel: this.logLevel,
       version: this.version,
       buildNumber: this.buildNumber,
