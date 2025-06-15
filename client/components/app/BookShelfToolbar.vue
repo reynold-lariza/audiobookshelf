@@ -12,6 +12,9 @@
       <nuxt-link v-if="isPodcastLibrary" :to="`/library/${currentLibraryId}/podcast/latest`" class="grow h-full flex justify-center items-center" :class="isPodcastLatestPage ? 'bg-primary/80' : 'bg-primary/40'">
         <p class="text-sm">{{ $strings.ButtonLatest }}</p>
       </nuxt-link>
+      <nuxt-link v-if="isPodcastLibrary" :to="`/library/${currentLibraryId}/calendar`" class="grow h-full flex justify-center items-center" :class="isCalendarPage ? 'bg-primary/80' : 'bg-primary/40'">
+        <p class="text-sm">{{ $strings.ButtonCalendar }}</p>
+      </nuxt-link>
       <nuxt-link v-if="isBookLibrary" :to="`/library/${currentLibraryId}/bookshelf/series`" class="grow h-full flex justify-center items-center" :class="isSeriesPage ? 'bg-primary/80' : 'bg-primary/40'">
         <p v-if="isSeriesPage" class="text-sm">{{ $strings.ButtonSeries }}</p>
         <span v-else class="material-symbols text-lg">view_column</span>
@@ -271,6 +274,9 @@ export default {
     },
     isPodcastLatestPage() {
       return this.$route.name === 'library-library-podcast-latest'
+    },
+    isCalendarPage() {
+      return this.$route.name === 'library-library-calendar'
     },
     isPodcastDownloadQueuePage() {
       return this.$route.name === 'library-library-podcast-download-queue'
