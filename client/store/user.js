@@ -22,7 +22,8 @@ export const state = () => ({
     skipIntro: false,
     introDuration: 10,
     skipOutro: false,
-    outroDuration: 10
+    outroDuration: 10,
+    useLogarithmicVolume: false
   }
 })
 
