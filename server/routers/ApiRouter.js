@@ -130,7 +130,7 @@ class ApiRouter {
     this.router.patch('/items/:id/ebook/:fileid/status', LibraryItemController.middleware.bind(this), LibraryItemController.updateEbookFileStatus.bind(this))
     // Comic page routes - server-side extraction with caching for performance
     this.router.get('/items/:id/comic-pages/:fileid?', LibraryItemController.middleware.bind(this), LibraryItemController.getComicPages.bind(this))
-    this.router.get('/items/:id/comic-page/:page/:fileid?', LibraryItemController.middleware.bind(this), LibraryItemController.getComicPage.bind(this))
+    this.router.get('/items/:id/comic-page/:page/:fileid?', LibraryItemController.getComicPage.bind(this))
 
     this.router.get('/items/:id/reviews', ReviewController.middleware.bind(this), ReviewController.findAllForItem.bind(this))
     this.router.post('/items/:id/review', ReviewController.middleware.bind(this), ReviewController.createUpdate.bind(this))
