@@ -19,7 +19,10 @@ export const state = () => ({
     authorSortDesc: false,
     jumpForwardAmount: 10,
     jumpBackwardAmount: 10,
-    bookSkipSettings: {} // 书籍跳过配置 { [libraryItemId]: { skipIntro, introDuration, skipOutro, outroDuration } }
+    skipIntro: false,
+    introDuration: 10,
+    skipOutro: false,
+    outroDuration: 10
   }
 })
 

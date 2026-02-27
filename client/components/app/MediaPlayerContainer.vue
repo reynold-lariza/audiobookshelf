@@ -661,16 +661,19 @@ export default {
       }
     },
     
-    // 获取当前书籍的跳过设置
-    getBookSkipSettings() {
-      if (!this.streamLibraryItem) return null
-      const bookSkipSettings = this.$store.getters['user/getUserSetting']('bookSkipSettings') || {}
-      return bookSkipSettings[this.streamLibraryItem.id] || {}
+    // 获取跳过设置
+    getSkipSettings() {
+      return {
+        skipIntro: this.$store.getters['user/getUserSetting']('skipIntro'),
+        introDuration: this.$store.getters['user/getUserSetting']('introDuration'),
+        skipOutro: this.$store.getters['user/getUserSetting']('skipOutro'),
+        outroDuration: this.$store.getters['user/getUserSetting']('outroDuration')
+      }
     },
 
     // 检查并执行章节intro/outro跳过
     checkAndSkipIntroOutro(currentTime) {
-      const skipSettings = this.getBookSkipSettings()
+      const skipSettings = this.getSkipSettings()
       if (!skipSettings) return
 
       const doSkipIntro = skipSettings.skipIntro && skipSettings.introDuration > 0
