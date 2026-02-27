@@ -19,24 +19,24 @@
       </div>
 
       <div class="border-t pt-4 mt-6">
-        <h4 class="text-lg font-medium mb-4">章节跳过设置</h4>
+        <h4 class="text-lg font-medium mb-4">{{ $strings.HeaderChapterSkipSettings }}</h4>
 
         <div class="flex items-center mb-4">
           <ui-toggle-switch v-model="skipIntro" @input="setSkipIntro" />
           <div class="pl-4 flex-1">
-            <span>跳过开头</span>
+            <span>{{ $strings.LabelSkipChapterIntro }}</span>
           </div>
           <ui-text-input v-model="introDuration" type="number" min="0" max="60" @input="setIntroDuration" class="w-20" />
-          <span class="ml-2 text-sm text-gray-400">秒</span>
+          <span class="ml-2 text-sm text-gray-400">{{ $strings.LabelSeconds }}</span>
         </div>
 
         <div class="flex items-center mb-4">
           <ui-toggle-switch v-model="skipOutro" @input="setSkipOutro" />
           <div class="pl-4 flex-1">
-            <span>跳过结尾</span>
+            <span>{{ $strings.LabelSkipChapterOutro }}</span>
           </div>
           <ui-text-input v-model="outroDuration" type="number" min="0" max="60" @input="setOutroDuration" class="w-20" />
-          <span class="ml-2 text-sm text-gray-400">秒</span>
+          <span class="ml-2 text-sm text-gray-400">{{ $strings.LabelSeconds }}</span>
         </div>
       </div>
     </div>
