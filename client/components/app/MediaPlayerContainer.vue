@@ -323,6 +323,9 @@ export default {
       if (this.useChapterTrack && this.currentChapter?.id !== previousChapterId && this.currentChapter) {
         this.updateMediaSessionForChapter()
       }
+
+      // Check and skip chapter intro/outro
+      this.checkAndSkipIntroOutro(time)
     },
     setDuration(duration) {
       this.totalDuration = duration
@@ -655,6 +658,81 @@ export default {
         console.log('sessionClosedEvent closing current session', sessionId)
         this.playerHandler.resetPlayer() // Closes player without reporting to server
         this.$store.commit('setMediaPlaying', null)
+      }
+    },
+    
+    // 获取当前书籍的跳过设置
+    getBookSkipSettings() {
+      if (!this.streamLibraryItem) return null
+      const bookSkipSettings = this.$store.getters['user/getUserSetting']('bookSkipSettings') || {}
+      return bookSkipSettings[this.streamLibraryItem.id] || {}
+    },
+
+    // 检查并执行章节intro/outro跳过
+    checkAndSkipIntroOutro(currentTime) {
+      const skipSettings = this.getBookSkipSettings()
+      if (!skipSettings) return
+
+      const doSkipIntro = skipSettings.skipIntro && skipSettings.introDuration > 0
+      const doSkipOutro = skipSettings.skipOutro && skipSettings.outroDuration > 0
+      if (!doSkipIntro && !doSkipOutro) return
+      if (!this.isPlaying || !this.chapters.length) return
+
+      // 防重入：正在跳过时等待到达目标位置后再解除
+      if (this._isSkipping) {
+        if (this._skipTarget != null && currentTime >= this._skipTarget - 0.5) {
+          this._isSkipping = false
+          this._skipTarget = null
+        }
+        return
+      }
+
+      const chapter = this.chapters.find((ch) => ch.start <= currentTime && currentTime < ch.end)
+      if (!chapter) return
+
+      const introDuration = doSkipIntro ? skipSettings.introDuration : 0
+      const outroDuration = doSkipOutro ? skipSettings.outroDuration : 0
+
+      const introEndTime = Math.min(chapter.start + introDuration, chapter.end)
+      const outroStartTime = Math.max(chapter.end - outroDuration, chapter.start)
+
+      // 短章节：intro和outro区间重叠则不跳
+      if (doSkipIntro && doSkipOutro && introEndTime > outroStartTime) return
+
+      // 检查是否在intro区间
+      if (doSkipIntro && currentTime < introEndTime) {
+        const target = introEndTime + 0.5
+        this._isSkipping = true
+        this._skipTarget = target
+        this.seek(target)
+        return
+      }
+
+      // 检查是否在outro区间
+      if (doSkipOutro && currentTime >= outroStartTime) {
+        const chapterIndex = this.chapters.indexOf(chapter)
+        const nextChapter = this.chapters[chapterIndex + 1]
+
+        if (nextChapter) {
+          // 有下一章：跳到下一章开头（如果同时开了skipIntro则跳过intro）
+          let target = nextChapter.start
+          if (doSkipIntro) {
+            const nextIntroEnd = Math.min(nextChapter.start + introDuration, nextChapter.end)
+            const nextOutroStart = Math.max(nextChapter.end - outroDuration, nextChapter.start)
+            // 确保下一章intro/outro不重叠
+            if (nextIntroEnd <= nextOutroStart) {
+              target = nextIntroEnd + 0.5
+            }
+          }
+          this._isSkipping = true
+          this._skipTarget = target
+          this.seek(target)
+        } else {
+          // 最后一章：跳到结尾，触发播放完成
+          this._isSkipping = true
+          this._skipTarget = chapter.end
+          this.seek(chapter.end)
+        }
       }
     }
   },

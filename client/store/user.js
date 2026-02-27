@@ -18,7 +18,8 @@ export const state = () => ({
     authorSortBy: 'name',
     authorSortDesc: false,
     jumpForwardAmount: 10,
-    jumpBackwardAmount: 10
+    jumpBackwardAmount: 10,
+    bookSkipSettings: {} // 书籍跳过配置 { [libraryItemId]: { skipIntro, introDuration, skipOutro, outroDuration } }
   }
 })
 
