@@ -129,7 +129,7 @@
   "HeaderBackups": "备份",
   "HeaderBulkChapterModal": "添加多个章节",
   "HeaderChangePassword": "更改密码",
-  "HeaderChapterSkipSettings": "章节跳过设置",
+  "HeaderChapterIntroOutroSkipSettings": "片头 / 片尾跳过设置",
   "HeaderChapters": "章节",
   "HeaderChooseAFolder": "选择文件夹",
   "HeaderCollection": "收藏",

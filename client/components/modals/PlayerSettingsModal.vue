@@ -19,7 +19,7 @@
       </div>
 
       <div class="border-t pt-4 mt-6">
-        <h4 class="text-lg font-medium mb-4">{{ $strings.HeaderChapterSkipSettings }}</h4>
+        <h4 class="text-lg font-medium mb-4">{{ $strings.HeaderChapterIntroOutroSkipSettings }}</h4>
 
         <div class="flex items-center mb-4">
           <ui-toggle-switch v-model="skipIntro" @input="setSkipIntro" />
