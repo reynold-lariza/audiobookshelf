@@ -664,7 +664,7 @@ export default {
       }
     },
     
-    // 获取跳过设置
+    // get skip settings
     getSkipSettings() {
       return {
         skipIntro: this.$store.getters['user/getUserSetting']('skipIntro'),
@@ -674,7 +674,7 @@ export default {
       }
     },
 
-    // 检查并执行章节intro/outro跳过
+    // check and skip intro/outro
     checkAndSkipIntroOutro(currentTime) {
       const skipSettings = this.getSkipSettings()
       if (!skipSettings) return
@@ -684,10 +684,10 @@ export default {
       if (!doSkipIntro && !doSkipOutro) return
       if (!this.isPlaying || !this.chapters.length) return
 
-      // 用户手动seek后2秒内不触发跳过
+      // The skip function is not triggered within 2 seconds after the user manually seeks
       if (this._manualSeekTime && Date.now() - this._manualSeekTime < 2000) return
 
-      // 防重入：正在跳过时等待到达目标位置后再解除
+      // Reentry guard: When skipping, wait until reaching the target position before cancelling
       if (this._isSkipping) {
         if (this._skipTarget != null && currentTime >= this._skipTarget - 0.5) {
           this._isSkipping = false
@@ -705,10 +705,10 @@ export default {
       const introEndTime = Math.min(chapter.start + introDuration, chapter.end)
       const outroStartTime = Math.max(chapter.end - outroDuration, chapter.start)
 
-      // 短章节：intro和outro区间重叠则不跳
+      // Short chapter: If the intro and outro intervals overlap, do not skip
       if (doSkipIntro && doSkipOutro && introEndTime > outroStartTime) return
 
-      // 检查是否在intro区间
+      //  Check whether it is within the intro interval
       if (doSkipIntro && currentTime < introEndTime) {
         const target = introEndTime + 0.5
         this._isSkipping = true
@@ -717,18 +717,18 @@ export default {
         return
       }
 
-      // 检查是否在outro区间
+      // check whether it is within the outro interval
       if (doSkipOutro && currentTime >= outroStartTime) {
         const chapterIndex = this.chapters.indexOf(chapter)
         const nextChapter = this.chapters[chapterIndex + 1]
 
         if (nextChapter) {
-          // 有下一章：跳到下一章开头（如果同时开了skipIntro则跳过intro）
+          // has next chapter: skip to next chapter start (if skipIntro is on, skip intro)
           let target = nextChapter.start
           if (doSkipIntro) {
             const nextIntroEnd = Math.min(nextChapter.start + introDuration, nextChapter.end)
             const nextOutroStart = Math.max(nextChapter.end - outroDuration, nextChapter.start)
-            // 确保下一章intro/outro不重叠
+            // ensure that the next chapter intro/outro does not overlap
             if (nextIntroEnd <= nextOutroStart) {
               target = nextIntroEnd + 0.5
             }
@@ -737,7 +737,7 @@ export default {
           this._skipTarget = target
           this.seek(target)
         } else {
-          // 最后一章：跳到结尾，触发播放完成
+          // last chapter: skip to end
           this._isSkipping = true
           this._skipTarget = chapter.end
           this.seek(chapter.end)
