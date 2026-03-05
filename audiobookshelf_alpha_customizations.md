@@ -1,4 +1,4 @@
-# Audiobookshelf Alpha Build (v2.32.1a) Customizations
+# Audiobookshelf Alpha Build (v2.32.1b) Customizations
 
 This file documents the custom modifications made to the local audiobookshelf repository.
 
@@ -20,7 +20,13 @@ This file documents the custom modifications made to the local audiobookshelf re
 15. **PR #4959:** Standardized Embedded Tags - When embedding metadata into MP4/M4B files, Audiobookshelf now strictly conforms to Mp3tag and Plex standards for maximum external compatibility.
 16. **PR #4797:** Auto-Match After Scan - Adds an option to automatically trigger a Quick Match with metadata providers immediately after a scheduled folder scan completes.
 17. **PR #4925:** Import .CUE Chapters - Adds a button to the Chapter Editor to easily import chapter timestamps and titles directly from standard `.cue` files.
-18. **PR #4970:** Share Page Visibility Fix - Small UX fix that ensures the download icon on a shared book page turns black if the book's cover art has a white background.
+18. **PR #4970:** Share Page Visibility Fix - Ensures the download icon on shared book pages remains visible when the cover art has a white background.
+19. **PR #4774:** HTTP Response Compression - Enables Gzip compression for all server traffic, making the interface snappier over remote connections.
+20. **PR #4962:** Rename Series Directly - Adds the ability to rename an entire series directly from the UI with duplicate validation.
+21. **PR #5076:** Author Name Auto-Update - Automatically corrects the Author name in the database when matching a book to a corrected metadata entry.
+22. **PR #4976:** Case-Insensitive Matching - Prevents duplicate authors/series creation during import caused by capitalization differences.
+23. **PR #4807:** Hide/Unhide Series - Adds a feature to hide specific series from library shelves without deleting the files.
+24. **PR #4782:** Smarter Toast Placement - Prevents toast notifications from overlapping with the media player bar at the bottom of the screen.
 
 ## Custom Features Developed
 
