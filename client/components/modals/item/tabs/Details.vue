@@ -13,6 +13,10 @@
 
         <ui-btn v-if="userIsAdminOrUp && !isFile" :loading="rescanning" :disabled="isLibraryScanning" color="bg-bg" type="button" class="h-full" small @click.stop.prevent="rescan">{{ $strings.ButtonReScan }}</ui-btn>
 
+        <ui-tooltip :disabled="!!autoTagging" text="Automatically generate tags based on item metadata" direction="bottom" class="ml-2 md:ml-4">
+          <ui-btn v-if="userIsAdminOrUp" :loading="autoTagging" color="bg-bg" type="button" class="h-full" small @click.stop.prevent="autoTag">Auto Tag</ui-btn>
+        </ui-tooltip>
+
         <div class="grow" />
 
         <!-- desktop -->
@@ -39,7 +43,8 @@ export default {
       resettingProgress: false,
       isScrollable: false,
       rescanning: false,
-      quickMatching: false
+      quickMatching: false,
+      autoTagging: false
     }
   },
   computed: {
@@ -116,6 +121,27 @@ export default {
           console.error('Failed to match', error)
           this.$toast.error(errMsg || 'Failed to match')
           this.quickMatching = false
+        })
+    },
+    autoTag() {
+      if (this.autoTagging) return
+      this.autoTagging = true
+      this.$axios
+        .$post(`/api/items/${this.libraryItemId}/auto-tag`)
+        .then((res) => {
+          this.autoTagging = false
+          if (res.updated) {
+            this.$toast.success(`Successfully auto-tagged: ${res.tags.join(', ')}`)
+            this.$emit('close') // Optionally close the modal, or you can just let the socket update flow
+          } else {
+            this.$toast.info('No new tags generated based on keywords.')
+          }
+        })
+        .catch((error) => {
+          var errMsg = error.response ? error.response.data || '' : ''
+          console.error('Failed to auto-tag', error)
+          this.$toast.error(errMsg || 'Failed to auto-tag')
+          this.autoTagging = false
         })
     },
     rescan() {

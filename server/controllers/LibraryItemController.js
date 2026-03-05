@@ -517,6 +517,48 @@ class LibraryItemController {
   }
 
   /**
+   * POST /api/items/:id/auto-tag
+   * Auto-generates and applies tags based on metadata keywords.
+   *
+   * @param {LibraryItemControllerRequest} req
+   * @param {Response} res
+   */
+  async autoTag(req, res) {
+    if (!req.user.canUpdate) {
+      Logger.error(`[LibraryItemController] User "${req.user.username}" attempted to auto-tag with invalid permissions`)
+      return res.sendStatus(403)
+    }
+
+    const autoTagger = require('../utils/metadata/autoTagger')
+    const currentMedia = req.libraryItem.media
+
+    const newTags = autoTagger.generateTagsFromMetadata(currentMedia)
+    if (!newTags || !newTags.length) {
+      return res.json({ updated: false, tags: currentMedia.tags })
+    }
+
+    // Merge generated tags with existing tags
+    const mergedTags = [...new Set([...(currentMedia.tags || []), ...newTags])]
+    
+    if (JSON.stringify(currentMedia.tags) !== JSON.stringify(mergedTags)) {
+      currentMedia.tags = mergedTags
+      currentMedia.changed('tags', true)
+      
+      await currentMedia.save()
+
+      req.libraryItem.changed('updatedAt', true)
+      await req.libraryItem.save()
+      await req.libraryItem.saveMetadataFile()
+
+      SocketAuthority.libraryItemEmitter('item_updated', req.libraryItem)
+      
+      return res.json({ updated: true, tags: currentMedia.tags })
+    }
+
+    res.json({ updated: false, tags: currentMedia.tags })
+  }
+
+  /**
    * POST: /api/items/batch/delete
    * Batch delete library items. Will delete from database and file system if hard delete is requested.
    * Optional query params:

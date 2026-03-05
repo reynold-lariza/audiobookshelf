@@ -364,6 +364,9 @@ class LibraryItemScanData {
     if (this.mediaMetadata.narrators?.length) {
       bookMetadata.narrators = this.mediaMetadata.narrators
     }
+    if (this.mediaMetadata.genres?.length) {
+      bookMetadata.genres = this.mediaMetadata.genres
+    }
     if (this.mediaMetadata.seriesName) {
       bookMetadata.series = [
         {
