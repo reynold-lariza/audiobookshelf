@@ -1,0 +1,747 @@
+From c18f722929a07ad200a7b8a72788ac8fb1038e80 Mon Sep 17 00:00:00 2001
+From: Maaz Hassan <h.maaz809@hotmail.com>
+Date: Wed, 27 Dec 2023 09:41:52 +0000
+Subject: [PATCH 1/6] Add: "Play Next" button for book and podcast cards
+
+---
+ client/components/cards/LazyBookCard.vue | 37 +++++++++++++++++++++++-
+ client/store/index.js                    |  9 ++++++
+ client/strings/cs.json                   |  1 +
+ client/strings/da.json                   |  1 +
+ client/strings/de.json                   |  3 +-
+ client/strings/en-us.json                |  1 +
+ client/strings/es.json                   |  1 +
+ client/strings/fr.json                   |  1 +
+ client/strings/gu.json                   |  1 +
+ client/strings/hi.json                   |  1 +
+ client/strings/hr.json                   |  1 +
+ client/strings/it.json                   |  1 +
+ client/strings/lt.json                   |  1 +
+ client/strings/nl.json                   |  1 +
+ client/strings/no.json                   |  1 +
+ client/strings/pl.json                   |  1 +
+ client/strings/ru.json                   |  1 +
+ client/strings/sv.json                   |  1 +
+ client/strings/zh-cn.json                |  1 +
+ 19 files changed, 63 insertions(+), 2 deletions(-)
+
+diff --git a/client/components/cards/LazyBookCard.vue b/client/components/cards/LazyBookCard.vue
+index c4d1345da..d9ff5b04e 100644
+--- a/client/components/cards/LazyBookCard.vue
++++ b/client/components/cards/LazyBookCard.vue
+@@ -463,7 +463,11 @@ export default {
+           if (!this.isQueued) {
+             items.push({
+               func: 'addToQueue',
+-              text: this.$strings.ButtonQueueAddItem
++              text: this.$strings.ButtonQueuePlayNext
++            },
++            {
++              func: 'playNext',
++              text: this.$strings.ButtonQueuePlayNext
+             })
+           } else if (!this.isStreaming) {
+             items.push({
+@@ -542,6 +546,10 @@ export default {
+             items.push({
+               func: 'addToQueue',
+               text: this.$strings.ButtonQueueAddItem
++            },
++            {
++              func: 'playNext',
++              text: this.$strings.ButtonQueuePlayNext
+             })
+           } else if (!this.isStreaming) {
+             items.push({
+@@ -830,6 +838,33 @@ export default {
+       }
+       this.store.commit('addItemToQueue', queueItem)
+     },
++    playNext() {
++      var queueItem = {}
++      if (this.recentEpisode) {
++        queueItem = {
++          libraryItemId: this.libraryItemId,
++          libraryId: this.libraryId,
++          episodeId: this.recentEpisode.id,
++          title: this.recentEpisode.title,
++          subtitle: this.mediaMetadata.title,
++          caption: this.recentEpisode.publishedAt ? `Published ${this.$formatDate(this.recentEpisode.publishedAt, this.dateFormat)}` : 'Unknown publish date',
++          duration: this.recentEpisode.audioFile.duration || null,
++          coverPath: this.media.coverPath || null
++        }
++      } else {
++        queueItem = {
++          libraryItemId: this.libraryItemId,
++          libraryId: this.libraryId,
++          episodeId: null,
++          title: this.title,
++          subtitle: this.author,
++          caption: '',
++          duration: this.media.duration || null,
++          coverPath: this.media.coverPath || null
++        }
++      }
++      this.store.commit('addItemToTopOfQueue', queueItem)
++    },
+     removeFromQueue() {
+       const episodeId = this.recentEpisode ? this.recentEpisode.id : null
+       this.store.commit('removeItemFromQueue', { libraryItemId: this.libraryItemId, episodeId })
+diff --git a/client/store/index.js b/client/store/index.js
+index ed7c35b61..ac35860c1 100644
+--- a/client/store/index.js
++++ b/client/store/index.js
+@@ -188,6 +188,15 @@ export const mutations = {
+       state.playerQueueItems.push(item)
+     }
+   },
++  addItemToTopOfQueue(state, item) {
++    const exists = state.playerQueueItems.some(i => {
++      if (!i.episodeId) return i.libraryItemId === item.libraryItemId
++      return i.libraryItemId === item.libraryItemId && i.episodeId === item.episodeId
++    })
++    if (!exists) {
++      state.playerQueueItems.splice(1, 0, item)
++    }
++  },
+   setPlayerQueueAutoPlay(state, autoPlay) {
+     state.playerQueueAutoPlay = !!autoPlay
+     localStorage.setItem('playerQueueAutoPlay', !!autoPlay ? '1' : '0')
+diff --git a/client/strings/cs.json b/client/strings/cs.json
+index bac376d87..c9bf88b22 100644
+--- a/client/strings/cs.json
++++ b/client/strings/cs.json
+@@ -51,6 +51,7 @@
+   "ButtonPurgeItemsCache": "Vyčistit mezipaměť položek",
+   "ButtonPurgeMediaProgress": "Vyčistit průběh médií",
+   "ButtonQueueAddItem": "Přidat do fronty",
++  "ButtonQueuePlayNext": "Play Next",
+   "ButtonQueueRemoveItem": "Odstranit z fronty",
+   "ButtonQuickMatch": "Rychlé přiřazení",
+   "ButtonRead": "Číst",
+diff --git a/client/strings/da.json b/client/strings/da.json
+index 3dd611d9e..5814a4f82 100644
+--- a/client/strings/da.json
++++ b/client/strings/da.json
+@@ -51,6 +51,7 @@
+   "ButtonPurgeItemsCache": "Ryd elementcache",
+   "ButtonPurgeMediaProgress": "Ryd Medieforløb",
+   "ButtonQueueAddItem": "Tilføj til kø",
++  "ButtonQueuePlayNext": "Play Next",
+   "ButtonQueueRemoveItem": "Fjern fra kø",
+   "ButtonQuickMatch": "Hurtig Match",
+   "ButtonRead": "Læs",
+diff --git a/client/strings/de.json b/client/strings/de.json
+index 20da77c19..2afbdefa2 100644
+--- a/client/strings/de.json
++++ b/client/strings/de.json
+@@ -51,6 +51,7 @@
+   "ButtonPurgeItemsCache": "Lösche Medien-Zwischenspeicher",
+   "ButtonPurgeMediaProgress": "Lösche Hörfortschritte",
+   "ButtonQueueAddItem": "Zur Warteschlange hinzufügen",
++  "ButtonQueuePlayNext": "Play Next",
+   "ButtonQueueRemoveItem": "Aus der Warteschlange entfernen",
+   "ButtonQuickMatch": "Schnellabgleich",
+   "ButtonRead": "Lese",
+@@ -750,4 +751,4 @@
+   "ToastSocketFailedToConnect": "Verbindung zum WebSocket fehlgeschlagen",
+   "ToastUserDeleteFailed": "Benutzer konnte nicht gelöscht werden",
+   "ToastUserDeleteSuccess": "Benutzer gelöscht"
+-}
++}
+\ No newline at end of file
+diff --git a/client/strings/en-us.json b/client/strings/en-us.json
+index f69175fde..d609cecc8 100644
+--- a/client/strings/en-us.json
++++ b/client/strings/en-us.json
+@@ -51,6 +51,7 @@
+   "ButtonPurgeItemsCache": "Purge Items Cache",
+   "ButtonPurgeMediaProgress": "Purge Media Progress",
+   "ButtonQueueAddItem": "Add to queue",
++  "ButtonQueuePlayNext": "Play Next",
+   "ButtonQueueRemoveItem": "Remove from queue",
+   "ButtonQuickMatch": "Quick Match",
+   "ButtonRead": "Read",
+diff --git a/client/strings/es.json b/client/strings/es.json
+index cefeb8f87..cf95535bd 100644
+--- a/client/strings/es.json
++++ b/client/strings/es.json
+@@ -51,6 +51,7 @@
+   "ButtonPurgeItemsCache": "Purgar Elementos de Cache",
+   "ButtonPurgeMediaProgress": "Purgar Progreso de Multimedia",
+   "ButtonQueueAddItem": "Agregar a la Fila",
++  "ButtonQueuePlayNext": "Play Next",
+   "ButtonQueueRemoveItem": "Remover de la Fila",
+   "ButtonQuickMatch": "Encontrar Rápido",
+   "ButtonRead": "Leer",
+diff --git a/client/strings/fr.json b/client/strings/fr.json
+index 86a646025..37a632058 100644
+--- a/client/strings/fr.json
++++ b/client/strings/fr.json
+@@ -51,6 +51,7 @@
+   "ButtonPurgeItemsCache": "Purger le cache des articles",
+   "ButtonPurgeMediaProgress": "Purger la progression des médias",
+   "ButtonQueueAddItem": "Ajouter à la liste de lecture",
++  "ButtonQueuePlayNext": "Play Next",
+   "ButtonQueueRemoveItem": "Supprimer de la liste de lecture",
+   "ButtonQuickMatch": "Recherche rapide",
+   "ButtonRead": "Lire",
+diff --git a/client/strings/gu.json b/client/strings/gu.json
+index 24c874eba..2ad83706f 100644
+--- a/client/strings/gu.json
++++ b/client/strings/gu.json
+@@ -51,6 +51,7 @@
+   "ButtonPurgeItemsCache": "વસ્તુઓનો Cache કાઢી નાખો",
+   "ButtonPurgeMediaProgress": "બધું સાંભળ્યું કાઢી નાખો",
+   "ButtonQueueAddItem": "કતારમાં ઉમેરો",
++  "ButtonQueuePlayNext": "Play Next",
+   "ButtonQueueRemoveItem": "કતારથી કાઢી નાખો",
+   "ButtonQuickMatch": "ઝડપી મેળ ખવડાવો",
+   "ButtonRead": "વાંચો",
+diff --git a/client/strings/hi.json b/client/strings/hi.json
+index e7ec61556..087a25a46 100644
+--- a/client/strings/hi.json
++++ b/client/strings/hi.json
+@@ -51,6 +51,7 @@
+   "ButtonPurgeItemsCache": "आइटम Cache मिटाएं",
+   "ButtonPurgeMediaProgress": "अभी तक सुना हुआ सब हटा दे",
+   "ButtonQueueAddItem": "क़तार में जोड़ें",
++  "ButtonQueuePlayNext": "Play Next",
+   "ButtonQueueRemoveItem": "कतार से हटाएं",
+   "ButtonQuickMatch": "जल्दी से समानता की तलाश करें",
+   "ButtonRead": "पढ़ लिया",
+diff --git a/client/strings/hr.json b/client/strings/hr.json
+index edefcf53c..f12cf4c20 100644
+--- a/client/strings/hr.json
++++ b/client/strings/hr.json
+@@ -51,6 +51,7 @@
+   "ButtonPurgeItemsCache": "Isprazni Items Cache",
+   "ButtonPurgeMediaProgress": "Purge Media Progress",
+   "ButtonQueueAddItem": "Add to queue",
++  "ButtonQueuePlayNext": "Play Next",
+   "ButtonQueueRemoveItem": "Remove from queue",
+   "ButtonQuickMatch": "Brzi match",
+   "ButtonRead": "Pročitaj",
+diff --git a/client/strings/it.json b/client/strings/it.json
+index 0860e83f3..fe6e46d36 100644
+--- a/client/strings/it.json
++++ b/client/strings/it.json
+@@ -51,6 +51,7 @@
+   "ButtonPurgeItemsCache": "Elimina la Cache selezionata",
+   "ButtonPurgeMediaProgress": "Elimina info dei media ascoltati",
+   "ButtonQueueAddItem": "Aggiungi alla Coda",
++  "ButtonQueuePlayNext": "Play Next",
+   "ButtonQueueRemoveItem": "Rimuovi dalla Coda",
+   "ButtonQuickMatch": "Controlla Metadata Auto",
+   "ButtonRead": "Leggi",
+diff --git a/client/strings/lt.json b/client/strings/lt.json
+index 94067198d..e6c0f822f 100644
+--- a/client/strings/lt.json
++++ b/client/strings/lt.json
+@@ -51,6 +51,7 @@
+   "ButtonPurgeItemsCache": "Valyti elementų saugyklą",
+   "ButtonPurgeMediaProgress": "Valyti medijos progresą",
+   "ButtonQueueAddItem": "Pridėti į eilę",
++  "ButtonQueuePlayNext": "Play Next",
+   "ButtonQueueRemoveItem": "Pašalinti iš eilės",
+   "ButtonQuickMatch": "Greitas pritaikymas",
+   "ButtonRead": "Skaityti",
+diff --git a/client/strings/nl.json b/client/strings/nl.json
+index 19a5c35a8..0d6ee452f 100644
+--- a/client/strings/nl.json
++++ b/client/strings/nl.json
+@@ -51,6 +51,7 @@
+   "ButtonPurgeItemsCache": "Onderdelen-cache legen",
+   "ButtonPurgeMediaProgress": "Mediavoortgang legen",
+   "ButtonQueueAddItem": "In wachtrij zetten",
++  "ButtonQueuePlayNext": "Play Next",
+   "ButtonQueueRemoveItem": "Uit wachtrij verwijderen",
+   "ButtonQuickMatch": "Snelle match",
+   "ButtonRead": "Lees",
+diff --git a/client/strings/no.json b/client/strings/no.json
+index 37cbc7a81..1d7650a9a 100644
+--- a/client/strings/no.json
++++ b/client/strings/no.json
+@@ -51,6 +51,7 @@
+   "ButtonPurgeItemsCache": "Tøm mellomlager",
+   "ButtonPurgeMediaProgress": "Slett medie fremgang",
+   "ButtonQueueAddItem": "Legg til kø",
++  "ButtonQueuePlayNext": "Play Next",
+   "ButtonQueueRemoveItem": "Fjern fra kø",
+   "ButtonQuickMatch": "Kjapt søk",
+   "ButtonRead": "Les",
+diff --git a/client/strings/pl.json b/client/strings/pl.json
+index 86e292741..09c000755 100644
+--- a/client/strings/pl.json
++++ b/client/strings/pl.json
+@@ -51,6 +51,7 @@
+   "ButtonPurgeItemsCache": "Wyczyść dane tymczasowe pozycji",
+   "ButtonPurgeMediaProgress": "Wyczyść postęp",
+   "ButtonQueueAddItem": "Dodaj do kolejki",
++  "ButtonQueuePlayNext": "Play Next",
+   "ButtonQueueRemoveItem": "Usuń z kolejki",
+   "ButtonQuickMatch": "Szybkie dopasowanie",
+   "ButtonRead": "Czytaj",
+diff --git a/client/strings/ru.json b/client/strings/ru.json
+index 4d26c4aae..4c6262d80 100644
+--- a/client/strings/ru.json
++++ b/client/strings/ru.json
+@@ -51,6 +51,7 @@
+   "ButtonPurgeItemsCache": "Очистить кэш элементов",
+   "ButtonPurgeMediaProgress": "Очистить прогресс медиа",
+   "ButtonQueueAddItem": "Добавить в очередь",
++  "ButtonQueuePlayNext": "Play Next",
+   "ButtonQueueRemoveItem": "Удалить из очереди",
+   "ButtonQuickMatch": "Быстрый поиск",
+   "ButtonRead": "Читать",
+diff --git a/client/strings/sv.json b/client/strings/sv.json
+index 1d71fce5a..934fe0412 100644
+--- a/client/strings/sv.json
++++ b/client/strings/sv.json
+@@ -51,6 +51,7 @@
+   "ButtonPurgeItemsCache": "Rensa föremåls-cache",
+   "ButtonPurgeMediaProgress": "Rensa medieförlopp",
+   "ButtonQueueAddItem": "Lägg till i kön",
++  "ButtonQueuePlayNext": "Play Next",
+   "ButtonQueueRemoveItem": "Ta bort från kön",
+   "ButtonQuickMatch": "Snabb matchning",
+   "ButtonRead": "Läs",
+diff --git a/client/strings/zh-cn.json b/client/strings/zh-cn.json
+index 05553c081..9424a2a14 100644
+--- a/client/strings/zh-cn.json
++++ b/client/strings/zh-cn.json
+@@ -51,6 +51,7 @@
+   "ButtonPurgeItemsCache": "清理项目缓存",
+   "ButtonPurgeMediaProgress": "清理媒体进度",
+   "ButtonQueueAddItem": "添加到队列",
++  "ButtonQueuePlayNext": "Play Next",
+   "ButtonQueueRemoveItem": "从队列中移除",
+   "ButtonQuickMatch": "快速匹配",
+   "ButtonRead": "读取",
+
+From 46ac48ffbd6333154c7421826b828b9a0137589c Mon Sep 17 00:00:00 2001
+From: Maaz Hassan <h.maaz809@hotmail.com>
+Date: Wed, 27 Dec 2023 10:36:09 +0000
+Subject: [PATCH 2/6] Fix dropdown menu item name for podcast cards
+
+---
+ client/components/cards/LazyBookCard.vue | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/client/components/cards/LazyBookCard.vue b/client/components/cards/LazyBookCard.vue
+index d9ff5b04e..22d2da34b 100644
+--- a/client/components/cards/LazyBookCard.vue
++++ b/client/components/cards/LazyBookCard.vue
+@@ -463,7 +463,7 @@ export default {
+           if (!this.isQueued) {
+             items.push({
+               func: 'addToQueue',
+-              text: this.$strings.ButtonQueuePlayNext
++              text: this.$strings.ButtonQueueAddItem
+             },
+             {
+               func: 'playNext',
+
+From 3fc0b99cb61f9ab94186b5f2259ab70385ac9cf3 Mon Sep 17 00:00:00 2001
+From: Maaz Hassan <h.maaz809@hotmail.com>
+Date: Fri, 29 Dec 2023 11:12:21 +0000
+Subject: [PATCH 3/6] Add: "Play Next" button for podcast episode table
+
+---
+ .../components/tables/podcast/EpisodeTableRow.vue |  8 +++++++-
+ .../components/tables/podcast/EpisodesTable.vue   | 15 ++++++++++++++-
+ client/strings/cs.json                            |  1 +
+ client/strings/da.json                            |  1 +
+ client/strings/de.json                            |  1 +
+ client/strings/en-us.json                         |  1 +
+ client/strings/es.json                            |  1 +
+ client/strings/fr.json                            |  1 +
+ client/strings/gu.json                            |  1 +
+ client/strings/hi.json                            |  1 +
+ client/strings/hr.json                            |  1 +
+ client/strings/it.json                            |  1 +
+ client/strings/lt.json                            |  1 +
+ client/strings/nl.json                            |  1 +
+ client/strings/no.json                            |  1 +
+ client/strings/pl.json                            |  1 +
+ client/strings/ru.json                            |  1 +
+ client/strings/sv.json                            |  1 +
+ client/strings/zh-cn.json                         |  1 +
+ 19 files changed, 38 insertions(+), 2 deletions(-)
+
+diff --git a/client/components/tables/podcast/EpisodeTableRow.vue b/client/components/tables/podcast/EpisodeTableRow.vue
+index 4300b8e14..5ba99962a 100644
+--- a/client/components/tables/podcast/EpisodeTableRow.vue
++++ b/client/components/tables/podcast/EpisodeTableRow.vue
+@@ -25,6 +25,10 @@
+             <ui-icon-btn :icon="isQueued ? 'playlist_add_check' : 'playlist_play'" borderless @click="queueBtnClick" />
+           </ui-tooltip>
+ 
++          <ui-tooltip v-if="!isQueued && libraryItemIdStreaming && !isStreamingFromDifferentLibrary" :text="$strings.MessagePlayNext" direction="top">
++            <ui-icon-btn class="scale-90" icon="queue_play_next" borderless @click="queuePlayNext" />
++          </ui-tooltip>
++
+           <ui-tooltip :text="userIsFinished ? $strings.MessageMarkAsNotFinished : $strings.MessageMarkAsFinished" direction="top">
+             <ui-read-icon-btn :disabled="isProcessingReadUpdate" :is-read="userIsFinished" borderless class="mx-1 mt-0.5" @click="toggleFinished" />
+           </ui-tooltip>
+@@ -201,7 +205,9 @@ export default {
+         // Add to queue
+         this.$emit('addToQueue', this.episode)
+       }
+-    }
++    },
++    queuePlayNext() {
++      this.$emit('queuePlayNext', this.episode)}
+   }
+ }
+ </script>
+diff --git a/client/components/tables/podcast/EpisodesTable.vue b/client/components/tables/podcast/EpisodesTable.vue
+index 9534b34e1..662b37e69 100644
+--- a/client/components/tables/podcast/EpisodesTable.vue
++++ b/client/components/tables/podcast/EpisodesTable.vue
+@@ -32,7 +32,7 @@
+       </form>
+     </div>
+     <template v-for="episode in episodesList">
+-      <tables-podcast-episode-table-row ref="episodeRow" :key="episode.id" :episode="episode" :library-item-id="libraryItem.id" :selection-mode="isSelectionMode" class="item" @play="playEpisode" @remove="removeEpisode" @edit="editEpisode" @view="viewEpisode" @selected="episodeSelected" @addToQueue="addEpisodeToQueue" @addToPlaylist="addToPlaylist" />
++      <tables-podcast-episode-table-row ref="episodeRow" :key="episode.id" :episode="episode" :library-item-id="libraryItem.id" :selection-mode="isSelectionMode" class="item" @play="playEpisode" @remove="removeEpisode" @edit="editEpisode" @view="viewEpisode" @selected="episodeSelected" @addToQueue="addEpisodeToQueue" @queuePlayNext="addEpisodeToTopOfQueue" @addToPlaylist="addToPlaylist" />
+     </template>
+ 
+     <modals-podcast-remove-episode v-model="showPodcastRemoveModal" @input="removeEpisodeModalToggled" :library-item="libraryItem" :episodes="episodesToRemove" @clearSelected="clearSelected" />
+@@ -274,6 +274,19 @@ export default {
+       }
+       this.$store.commit('addItemToQueue', queueItem)
+     },
++    addEpisodeToTopOfQueue(episode) {
++      const queueItem = {
++        libraryItemId: this.libraryItem.id,
++        libraryId: this.libraryItem.libraryId,
++        episodeId: episode.id,
++        title: episode.title,
++        subtitle: this.mediaMetadata.title,
++        caption: episode.publishedAt ? `Published ${this.$formatDate(episode.publishedAt, this.dateFormat)}` : 'Unknown publish date',
++        duration: episode.audioFile.duration || null,
++        coverPath: this.media.coverPath || null
++      }
++      this.$store.commit('addItemToTopOfQueue', queueItem)
++    },
+     toggleBatchFinished() {
+       this.batchUpdateEpisodesFinished(this.selectedEpisodes, !this.selectedIsFinished)
+     },
+diff --git a/client/strings/cs.json b/client/strings/cs.json
+index c9bf88b22..c7d268acc 100644
+--- a/client/strings/cs.json
++++ b/client/strings/cs.json
+@@ -642,6 +642,7 @@
+   "MessagePauseChapter": "Pozastavit přehrávání kapitoly",
+   "MessagePlayChapter": "Poslechnout si začátek kapitoly",
+   "MessagePlaylistCreateFromCollection": "Vytvořit seznam skladeb z kolekce",
++  "MessagePlayNext": "Play next",
+   "MessagePodcastHasNoRSSFeedForMatching": "Podcast nemá žádnou adresu URL kanálu RSS, kterou by mohl použít pro porovnávání",
+   "MessageQuickMatchDescription": "Vyplňte prázdné detaily položky a obálku prvním výsledkem shody z '{0}'. Nepřepisuje podrobnosti, pokud není povoleno nastavení serveru \"Preferovat párování metadata\".",
+   "MessageRemoveChapter": "Odstranit kapitolu",
+diff --git a/client/strings/da.json b/client/strings/da.json
+index 5814a4f82..9c0d03b84 100644
+--- a/client/strings/da.json
++++ b/client/strings/da.json
+@@ -642,6 +642,7 @@
+   "MessagePauseChapter": "Pause kapitelafspilning",
+   "MessagePlayChapter": "Lyt til begyndelsen af kapitlet",
+   "MessagePlaylistCreateFromCollection": "Opret afspilningsliste fra samling",
++  "MessagePlayNext": "Play next",
+   "MessagePodcastHasNoRSSFeedForMatching": "Podcast har ingen RSS-feed-URL at bruge til matchning",
+   "MessageQuickMatchDescription": "Udfyld tomme elementoplysninger og omslag med første matchresultat fra '{0}'. Overskriver ikke oplysninger, medmindre serverindstillingen 'Foretræk matchet metadata' er aktiveret.",
+   "MessageRemoveChapter": "Fjern kapitel",
+diff --git a/client/strings/de.json b/client/strings/de.json
+index 2afbdefa2..3f2a2f9b7 100644
+--- a/client/strings/de.json
++++ b/client/strings/de.json
+@@ -642,6 +642,7 @@
+   "MessagePauseChapter": "Kapitelwiedergabe pausieren",
+   "MessagePlayChapter": "Kapitelanfang anhören",
+   "MessagePlaylistCreateFromCollection": "Erstelle eine Wiedergabeliste aus der Sammlung",
++  "MessagePlayNext": "Play next",
+   "MessagePodcastHasNoRSSFeedForMatching": "Der Podcast hat keine RSS-Feed-Url welche für den Online-Abgleich verwendet werden kann",
+   "MessageQuickMatchDescription": "Füllt leere Details und Titelbilder mit dem ersten Treffer aus '{0}'. Überschreibt keine Details, es sei denn, die Server-Einstellung \"Passende Metadaten bevorzugen\" ist aktiviert.",
+   "MessageRemoveChapter": "Kapitel löschen",
+diff --git a/client/strings/en-us.json b/client/strings/en-us.json
+index d609cecc8..f4772855f 100644
+--- a/client/strings/en-us.json
++++ b/client/strings/en-us.json
+@@ -642,6 +642,7 @@
+   "MessagePauseChapter": "Pause chapter playback",
+   "MessagePlayChapter": "Listen to beginning of chapter",
+   "MessagePlaylistCreateFromCollection": "Create playlist from collection",
++  "MessagePlayNext": "Play next",
+   "MessagePodcastHasNoRSSFeedForMatching": "Podcast has no RSS feed url to use for matching",
+   "MessageQuickMatchDescription": "Populate empty item details & cover with first match result from '{0}'. Does not overwrite details unless 'Prefer matched metadata' server setting is enabled.",
+   "MessageRemoveChapter": "Remove chapter",
+diff --git a/client/strings/es.json b/client/strings/es.json
+index cf95535bd..992d52ae3 100644
+--- a/client/strings/es.json
++++ b/client/strings/es.json
+@@ -642,6 +642,7 @@
+   "MessagePauseChapter": "Pausar la reproducción del capítulo",
+   "MessagePlayChapter": "Escuchar el comienzo del capítulo",
+   "MessagePlaylistCreateFromCollection": "Crear una lista de reproducción a partir de una colección",
++  "MessagePlayNext": "Play next",
+   "MessagePodcastHasNoRSSFeedForMatching": "El podcast no tiene una URL de fuente RSS que pueda usar",
+   "MessageQuickMatchDescription": "Rellenar detalles de elementos vacíos y portada con los primeros resultados de '{0}'. No sobrescribe los detalles a menos que la opción \"Preferir Metadatos Encontrados\" del servidor esté habilitada.",
+   "MessageRemoveChapter": "Remover capítulos",
+diff --git a/client/strings/fr.json b/client/strings/fr.json
+index 37a632058..93d429abd 100644
+--- a/client/strings/fr.json
++++ b/client/strings/fr.json
+@@ -642,6 +642,7 @@
+   "MessagePauseChapter": "Suspendre la lecture du chapitre",
+   "MessagePlayChapter": "Écouter depuis le début du chapitre",
+   "MessagePlaylistCreateFromCollection": "Créer une liste de lecture depuis la collection",
++  "MessagePlayNext": "Play next",
+   "MessagePodcastHasNoRSSFeedForMatching": "Le Podcast n’a pas d’URL de flux RSS à utiliser pour la correspondance",
+   "MessageQuickMatchDescription": "Renseigne les détails manquants ainsi que la couverture avec la première correspondance de « {0} ». N’écrase pas les données présentes à moins que le paramètre « Préférer les Métadonnées par correspondance » soit activé.",
+   "MessageRemoveChapter": "Supprimer le chapitre",
+diff --git a/client/strings/gu.json b/client/strings/gu.json
+index 2ad83706f..80fffd9d8 100644
+--- a/client/strings/gu.json
++++ b/client/strings/gu.json
+@@ -642,6 +642,7 @@
+   "MessagePauseChapter": "Pause chapter playback",
+   "MessagePlayChapter": "Listen to beginning of chapter",
+   "MessagePlaylistCreateFromCollection": "Create playlist from collection",
++  "MessagePlayNext": "Play next",
+   "MessagePodcastHasNoRSSFeedForMatching": "Podcast has no RSS feed url to use for matching",
+   "MessageQuickMatchDescription": "Populate empty item details & cover with first match result from '{0}'. Does not overwrite details unless 'Prefer matched metadata' server setting is enabled.",
+   "MessageRemoveChapter": "Remove chapter",
+diff --git a/client/strings/hi.json b/client/strings/hi.json
+index 087a25a46..371b621e2 100644
+--- a/client/strings/hi.json
++++ b/client/strings/hi.json
+@@ -642,6 +642,7 @@
+   "MessagePauseChapter": "Pause chapter playback",
+   "MessagePlayChapter": "Listen to beginning of chapter",
+   "MessagePlaylistCreateFromCollection": "Create playlist from collection",
++  "MessagePlayNext": "Play next",
+   "MessagePodcastHasNoRSSFeedForMatching": "Podcast has no RSS feed url to use for matching",
+   "MessageQuickMatchDescription": "Populate empty item details & cover with first match result from '{0}'. Does not overwrite details unless 'Prefer matched metadata' server setting is enabled.",
+   "MessageRemoveChapter": "Remove chapter",
+diff --git a/client/strings/hr.json b/client/strings/hr.json
+index f12cf4c20..00202f6f7 100644
+--- a/client/strings/hr.json
++++ b/client/strings/hr.json
+@@ -642,6 +642,7 @@
+   "MessagePauseChapter": "Pause chapter playback",
+   "MessagePlayChapter": "Listen to beginning of chapter",
+   "MessagePlaylistCreateFromCollection": "Create playlist from collection",
++  "MessagePlayNext": "Play next",
+   "MessagePodcastHasNoRSSFeedForMatching": "Podcast nema RSS feed url za matchanje",
+   "MessageQuickMatchDescription": "Popuni prazne detalje stavki i cover sa prvim match rezultato iz '{0}'. Ne briše detalje osim ako 'Prefer matched metadata' server postavka nije uključena.",
+   "MessageRemoveChapter": "Remove chapter",
+diff --git a/client/strings/it.json b/client/strings/it.json
+index fe6e46d36..986a27d74 100644
+--- a/client/strings/it.json
++++ b/client/strings/it.json
+@@ -642,6 +642,7 @@
+   "MessagePauseChapter": "Metti in Pausa Capitolo",
+   "MessagePlayChapter": "Ascolta dall'inizio del capitolo",
+   "MessagePlaylistCreateFromCollection": "Crea playlist da una Raccolta",
++  "MessagePlayNext": "Play next",
+   "MessagePodcastHasNoRSSFeedForMatching": "Podcast non ha l'URL del feed RSS da utilizzare per il match",
+   "MessageQuickMatchDescription": "Compila i dettagli dell'articolo vuoto e copri con il risultato della prima corrispondenza di '{0}'. Non sovrascrive i dettagli a meno che non sia abilitata l'impostazione del server \"Preferisci metadati corrispondenti\".",
+   "MessageRemoveChapter": "Rimuovi Capitolo",
+diff --git a/client/strings/lt.json b/client/strings/lt.json
+index e6c0f822f..6427b3743 100644
+--- a/client/strings/lt.json
++++ b/client/strings/lt.json
+@@ -642,6 +642,7 @@
+   "MessagePauseChapter": "Pristabdyti skyriaus grojimą",
+   "MessagePlayChapter": "Paklausyti skyriaus pradžios",
+   "MessagePlaylistCreateFromCollection": "Sukurti grojaraštį iš kolekcijos",
++  "MessagePlayNext": "Play next",
+   "MessagePodcastHasNoRSSFeedForMatching": "Tinklalidė neturi RSS srauto URL kuriuo būtų galima sulyginti",
+   "MessageQuickMatchDescription": "Užpildykite tuščius elementų duomenis ir viršelius su pirmuoju atitikimo rezultatu iš „{0}“. Neneperrašo detalių, nebent įgalintas serverio nustatymas „Pirmenybė atitaikytiems metaduomenis“.",
+   "MessageRemoveChapter": "Pašalinti skyrių",
+diff --git a/client/strings/nl.json b/client/strings/nl.json
+index 0d6ee452f..035e662a1 100644
+--- a/client/strings/nl.json
++++ b/client/strings/nl.json
+@@ -642,6 +642,7 @@
+   "MessagePauseChapter": "Pauzeer afspelen hoofdstuk",
+   "MessagePlayChapter": "Luister naar begin van hoofdstuk",
+   "MessagePlaylistCreateFromCollection": "Afspeellijst aanmaken vanuit collectie",
++  "MessagePlayNext": "Play next",
+   "MessagePodcastHasNoRSSFeedForMatching": "Podcast heeft geen RSS-feed URL om te gebruiken voor matching",
+   "MessageQuickMatchDescription": "Vul lege onderdeeldetails & cover met eerste matchresultaat van '{0}'. Overschrijft geen details tenzij 'Prefereer gematchte metadata' serverinstelling is ingeschakeld.",
+   "MessageRemoveChapter": "Verwijder hoofdstuk",
+diff --git a/client/strings/no.json b/client/strings/no.json
+index 1d7650a9a..ca51e8414 100644
+--- a/client/strings/no.json
++++ b/client/strings/no.json
+@@ -642,6 +642,7 @@
+   "MessagePauseChapter": "Pause avspilling av kapittel",
+   "MessagePlayChapter": "Lytter på begynnelsen av kapittel",
+   "MessagePlaylistCreateFromCollection": "Lag spilleliste fra samling",
++  "MessagePlayNext": "Play next",
+   "MessagePodcastHasNoRSSFeedForMatching": "Podcast har ingen RSS feed url til bruk av sammenligning",
+   "MessageQuickMatchDescription": "Fyll inn tomme gjenstandsdetaljer og omslagsbilde med første resultat fra '{0}'. Overskriver ikke detaljene utenom 'Foretrekk funnet metadata' tjenerinstilling er aktivert.",
+   "MessageRemoveChapter": "fjerne kapittel",
+diff --git a/client/strings/pl.json b/client/strings/pl.json
+index 09c000755..2a193df9a 100644
+--- a/client/strings/pl.json
++++ b/client/strings/pl.json
+@@ -642,6 +642,7 @@
+   "MessagePauseChapter": "Zatrzymaj odtwarzanie rozdziały",
+   "MessagePlayChapter": "Rozpocznij odtwarzanie od początku rozdziału",
+   "MessagePlaylistCreateFromCollection": "Create playlist from collection",
++  "MessagePlayNext": "Play next",
+   "MessagePodcastHasNoRSSFeedForMatching": "Podcast nie ma adresu url kanału RSS, który mógłby zostać użyty do dopasowania",
+   "MessageQuickMatchDescription": "Wypełnij puste informacje i okładkę pierwszym wynikiem dopasowania z '{0}'. Nie nadpisuje szczegółów, chyba że włączone jest ustawienie serwera 'Preferuj dopasowane metadane'.",
+   "MessageRemoveChapter": "Usuń rozdział",
+diff --git a/client/strings/ru.json b/client/strings/ru.json
+index 4c6262d80..695f8e97f 100644
+--- a/client/strings/ru.json
++++ b/client/strings/ru.json
+@@ -642,6 +642,7 @@
+   "MessagePauseChapter": "Пауза воспроизведения главы",
+   "MessagePlayChapter": "Прослушать начало главы",
+   "MessagePlaylistCreateFromCollection": "Создать плейлист из коллекции",
++  "MessagePlayNext": "Play next",
+   "MessagePodcastHasNoRSSFeedForMatching": "Подкаст не имеет URL-адреса RSS-канала, который можно использовать для поиска",
+   "MessageQuickMatchDescription": "Заполняет пустые детали элемента и обложку первым результатом поиска из «{0}». Не перезаписывает сведения, если не включен параметр сервера 'Предпочитать метаданные поиска'.",
+   "MessageRemoveChapter": "Удалить главу",
+diff --git a/client/strings/sv.json b/client/strings/sv.json
+index 934fe0412..d5e13463a 100644
+--- a/client/strings/sv.json
++++ b/client/strings/sv.json
+@@ -642,6 +642,7 @@
+   "MessagePauseChapter": "Pausa kapiteluppspelning",
+   "MessagePlayChapter": "Lyssna på kapitlets början",
+   "MessagePlaylistCreateFromCollection": "Skapa spellista från samling",
++  "MessagePlayNext": "Play next",
+   "MessagePodcastHasNoRSSFeedForMatching": "Podcasten har ingen RSS-flödes-URL att använda för matchning",
+   "MessageQuickMatchDescription": "Fyll tomma objektdetaljer och omslag med första matchningsresultat från '{0}'. Överskriver inte detaljer om inte serverinställningen 'Föredra matchad metadata' är aktiverad.",
+   "MessageRemoveChapter": "Ta bort kapitel",
+diff --git a/client/strings/zh-cn.json b/client/strings/zh-cn.json
+index 9424a2a14..8b82c6e95 100644
+--- a/client/strings/zh-cn.json
++++ b/client/strings/zh-cn.json
+@@ -642,6 +642,7 @@
+   "MessagePauseChapter": "暂停章节播放",
+   "MessagePlayChapter": "开始章节播放",
+   "MessagePlaylistCreateFromCollection": "从收藏中创建播放列表",
++  "MessagePlayNext": "Play next",
+   "MessagePodcastHasNoRSSFeedForMatching": "播客没有可用于匹配 RSS 源的 url",
+   "MessageQuickMatchDescription": "使用来自 '{0}' 的第一个匹配结果填充空白详细信息和封面. 除非启用 '首选匹配元数据' 服务器设置, 否则不会覆盖详细信息.",
+   "MessageRemoveChapter": "移除章节",
+
+From 1e7af5491c7cc6bd24217be517919f742f169100 Mon Sep 17 00:00:00 2001
+From: Maaz Hassan <h.maaz809@hotmail.com>
+Date: Fri, 29 Dec 2023 11:40:56 +0000
+Subject: [PATCH 4/6] Add: "Play Next" button for podcast latest episodes
+
+---
+ .../pages/library/_library/podcast/latest.vue   | 17 +++++++++++++++++
+ 1 file changed, 17 insertions(+)
+
+diff --git a/client/pages/library/_library/podcast/latest.vue b/client/pages/library/_library/podcast/latest.vue
+index d05658165..67168bfe2 100644
+--- a/client/pages/library/_library/podcast/latest.vue
++++ b/client/pages/library/_library/podcast/latest.vue
+@@ -57,6 +57,10 @@
+                 <button v-if="libraryItemIdStreaming && !isStreamingFromDifferentLibrary" class="h-8 w-8 flex justify-center items-center mx-2" :class="playerQueueEpisodeIdMap[episode.id] ? 'text-success' : ''" @click.stop="queueBtnClick(episode)">
+                   <span class="material-icons-outlined text-2xl">{{ playerQueueEpisodeIdMap[episode.id] ? 'playlist_add_check' : 'playlist_add' }}</span>
+                 </button>
++
++                <button v-if="!playerQueueEpisodeIdMap[episode.id] && libraryItemIdStreaming && !isStreamingFromDifferentLibrary" class="h-8 w-8 flex justify-center items-center" @click.stop="playNextBtnClick(episode)">
++                  <span class="material-icons-outlined text-xl">{{ 'queue_play_next' }}</span>
++                </button>
+               </div>
+             </div>
+ 
+@@ -220,6 +224,19 @@ export default {
+         }
+         this.$store.commit('addItemToQueue', queueItem)
+       }
++    },
++    playNextBtnClick(episode) {
++      const queueItem = {
++        libraryItemId: episode.libraryItemId,
++        libraryId: episode.libraryId,
++        episodeId: episode.id,
++        title: episode.title,
++        subtitle: episode.podcast.metadata.title,
++        caption: episode.publishedAt ? `Published ${this.$formatDate(episode.publishedAt, this.dateFormat)}` : 'Unknown publish date',
++        duration: episode.duration || null,
++        coverPath: episode.podcast.coverPath || null
++      }
++      this.$store.commit('addItemToTopOfQueue', queueItem)
+     }
+   },
+   mounted() {
+
+From ff08d448707d52d0aa975821cb07ce39610314be Mon Sep 17 00:00:00 2001
+From: Maaz Hassan <h.maaz809@hotmail.com>
+Date: Fri, 29 Dec 2023 12:08:59 +0000
+Subject: [PATCH 5/6] Remove unecessary mustache from podcast latest
+
+---
+ client/pages/library/_library/podcast/latest.vue | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/client/pages/library/_library/podcast/latest.vue b/client/pages/library/_library/podcast/latest.vue
+index 67168bfe2..a1af6d869 100644
+--- a/client/pages/library/_library/podcast/latest.vue
++++ b/client/pages/library/_library/podcast/latest.vue
+@@ -59,7 +59,7 @@
+                 </button>
+ 
+                 <button v-if="!playerQueueEpisodeIdMap[episode.id] && libraryItemIdStreaming && !isStreamingFromDifferentLibrary" class="h-8 w-8 flex justify-center items-center" @click.stop="playNextBtnClick(episode)">
+-                  <span class="material-icons-outlined text-xl">{{ 'queue_play_next' }}</span>
++                  <span class="material-icons-outlined text-xl">queue_play_next</span>
+                 </button>
+               </div>
+             </div>
+
+From 17c0c646077ee7851823b69f398e0fbe5255e2d1 Mon Sep 17 00:00:00 2001
+From: Maaz Hassan <h.maaz809@hotmail.com>
+Date: Fri, 29 Dec 2023 12:09:43 +0000
+Subject: [PATCH 6/6] Add: "Play Next" button for book item page
+
+---
+ client/pages/item/_id/index.vue | 17 +++++++++++++++++
+ 1 file changed, 17 insertions(+)
+
+diff --git a/client/pages/item/_id/index.vue b/client/pages/item/_id/index.vue
+index 8658a6e42..b033fd42d 100644
+--- a/client/pages/item/_id/index.vue
++++ b/client/pages/item/_id/index.vue
+@@ -97,6 +97,10 @@
+               <ui-icon-btn :icon="isQueued ? 'playlist_add_check' : 'playlist_play'" :bg-color="isQueued ? 'primary' : 'success bg-opacity-60'" class="mx-0.5" :class="isQueued ? 'text-success' : ''" @click="queueBtnClick" />
+             </ui-tooltip>
+ 
++            <ui-tooltip v-if="!isQueued && showQueueBtn" :text="$strings.ButtonQueuePlayNext" direction="top">
++              <ui-icon-btn icon="queue_play_next" class="mx-0.5" @click="playNextBtnClick" />
++            </ui-tooltip>
++
+             <ui-btn v-if="showReadButton" color="info" :padding-x="4" small class="flex items-center h-9 mr-2" @click="openEbook">
+               <span class="material-icons text-2xl -ml-2 pr-2 text-white">auto_stories</span>
+               {{ $strings.ButtonRead }}
+@@ -677,6 +681,19 @@ export default {
+         this.$store.commit('addItemToQueue', queueItem)
+       }
+     },
++    playNextBtnClick() {
++      const queueItem = {
++        libraryItemId: this.libraryItemId,
++        libraryId: this.libraryId,
++        episodeId: null,
++        title: this.title,
++        subtitle: this.authors.map((au) => au.name).join(', '),
++        caption: '',
++        duration: this.duration || null,
++        coverPath: this.media.coverPath || null
++      }
++      this.$store.commit('addItemToTopOfQueue', queueItem)
++    },
+     downloadLibraryItem() {
+       this.$downloadFile(this.downloadUrl)
+     },

@@ -1,0 +1,878 @@
+From 79df705da7caeebab4db742211ebb2f3d969938c Mon Sep 17 00:00:00 2001
+From: Faizan Zafar <faizan.zafar01@student.csulb.edu>
+Date: Sun, 25 Aug 2024 01:04:40 -0700
+Subject: [PATCH 1/3] Add support for "Open Current Chapter" button
+
+---
+ .../components/app/MediaPlayerContainer.vue   |  1 +
+ client/components/player/PlayerUi.vue         | 13 ++++-
+ client/components/readers/EpubReader.vue      | 53 +++++++++++++++++--
+ client/strings/bg.json                        |  1 +
+ client/strings/bn.json                        |  1 +
+ client/strings/cs.json                        |  1 +
+ client/strings/da.json                        |  1 +
+ client/strings/de.json                        |  1 +
+ client/strings/en-us.json                     |  1 +
+ client/strings/es.json                        |  1 +
+ client/strings/et.json                        |  1 +
+ client/strings/fi.json                        |  1 +
+ client/strings/fr.json                        |  1 +
+ client/strings/gu.json                        |  1 +
+ client/strings/he.json                        |  1 +
+ client/strings/hi.json                        |  1 +
+ client/strings/hr.json                        |  1 +
+ client/strings/hu.json                        |  1 +
+ client/strings/it.json                        |  1 +
+ client/strings/lt.json                        |  1 +
+ client/strings/nl.json                        |  1 +
+ client/strings/no.json                        |  1 +
+ client/strings/pl.json                        |  1 +
+ client/strings/pt-br.json                     |  1 +
+ client/strings/ru.json                        |  1 +
+ client/strings/sv.json                        |  1 +
+ client/strings/uk.json                        |  1 +
+ client/strings/vi-vn.json                     |  1 +
+ client/strings/zh-cn.json                     |  1 +
+ client/strings/zh-tw.json                     |  1 +
+ 30 files changed, 88 insertions(+), 6 deletions(-)
+
+diff --git a/client/components/app/MediaPlayerContainer.vue b/client/components/app/MediaPlayerContainer.vue
+index 61508d7e3..7c1a723e3 100644
+--- a/client/components/app/MediaPlayerContainer.vue
++++ b/client/components/app/MediaPlayerContainer.vue
+@@ -36,6 +36,7 @@
+       ref="audioPlayer"
+       :chapters="chapters"
+       :current-chapter="currentChapter"
++      :libraryItem="streamLibraryItem"
+       :paused="!isPlaying"
+       :loading="playerLoading"
+       :bookmarks="bookmarks"
+diff --git a/client/components/player/PlayerUi.vue b/client/components/player/PlayerUi.vue
+index 2cfa54fe6..10277c8ac 100644
+--- a/client/components/player/PlayerUi.vue
++++ b/client/components/player/PlayerUi.vue
+@@ -7,7 +7,11 @@
+         <ui-tooltip direction="top" :text="$strings.LabelVolume">
+           <controls-volume-control ref="volumeControl" v-model="volume" @input="setVolume" class="mx-2 hidden sm:block" />
+         </ui-tooltip>
+-
++        <ui-tooltip v-if="hasEbookFile" direction="top" :text="$strings.ButtonOpenCurrentChapter">
++          <button :aria-label="$strings.ButtonOpenCurrentChapter" class="text-gray-300 hover:text-white mx-1 lg:mx-2" @mousedown.prevent @mouseup.prevent @click.stop="openEbook">
++            <span class="material-symbols text-2xl">auto_stories</span>
++          </button>
++        </ui-tooltip>
+         <ui-tooltip v-if="!hideSleepTimer" direction="top" :text="$strings.LabelSleepTimer">
+           <button :aria-label="$strings.LabelSleepTimer" class="text-gray-300 hover:text-white mx-1 lg:mx-2" @mousedown.prevent @mouseup.prevent @click.stop="$emit('showSleepTimer')">
+             <span v-if="!sleepTimerSet" class="material-symbols text-2xl">snooze</span>
+@@ -77,6 +81,7 @@ export default {
+       type: Array,
+       default: () => []
+     },
++    libraryItem: Object,
+     sleepTimerSet: Boolean,
+     sleepTimerRemaining: Number,
+     sleepTimerType: String,
+@@ -173,6 +178,9 @@ export default {
+     useChapterTrack() {
+       const _useChapterTrack = this.$store.getters['user/getUserSetting']('useChapterTrack') || false
+       return this.chapters.length ? _useChapterTrack : false
++    },
++    hasEbookFile() {
++      return this.libraryItem.media && this.libraryItem.media.ebookFile
+     }
+   },
+   methods: {
+@@ -352,6 +360,9 @@ export default {
+       else if (action === this.$hotkeys.AudioPlayer.INCREASE_PLAYBACK_RATE) this.increasePlaybackRate()
+       else if (action === this.$hotkeys.AudioPlayer.DECREASE_PLAYBACK_RATE) this.decreasePlaybackRate()
+       else if (action === this.$hotkeys.AudioPlayer.CLOSE) this.closePlayer()
++    },
++    openEbook() {
++      this.$store.commit('showEReader', { libraryItem: this.libraryItem, keepProgress: true })
+     }
+   },
+   mounted() {
+diff --git a/client/components/readers/EpubReader.vue b/client/components/readers/EpubReader.vue
+index 725e9cc1e..14f9c6065 100644
+--- a/client/components/readers/EpubReader.vue
++++ b/client/components/readers/EpubReader.vue
+@@ -305,7 +305,7 @@ export default {
+         })
+       }
+     },
+-    initEpub() {
++    async initEpub() {
+       /** @type {EpubReader} */
+       const reader = this
+ 
+@@ -330,8 +330,26 @@ export default {
+         flow: 'paginated'
+       })
+ 
+-      // load saved progress
+-      reader.rendition.display(this.savedEbookLocation || reader.book.locations.start)
++      await reader.book.ready
++      // load saved progress or initial chapter
++      var initialLocation = this.savedEbookLocation || this.initialChapterHref || reader.book.locations.start
++      try {
++        const initialChapterTitle = this.getCurrentAudioChapter()
++        if (initialChapterTitle) {
++          const href = this.findChapterHref(initialChapterTitle)
++          if (href) {
++            try {
++              initialLocation = 'text/' + href
++            } catch (error) {
++              console.error('Failed to navigate to chapter:', error)
++            }
++          }
++        }
++      } catch (error) {
++        return
++      }
++
++      reader.rendition.display(initialLocation)
+ 
+       reader.rendition.on('rendered', () => {
+         this.applyTheme()
+@@ -439,13 +457,38 @@ export default {
+       this.rendition.getContents().forEach((c) => {
+         c.addStylesheetRules(this.themeRules)
+       })
++    },
++    getCurrentAudioChapter() {
++      try {
++        var currentTime = this.$store.getters['user/getUserMediaProgress'](this.libraryItemId).currentTime
++        var audioBookChapters = this.$store.state.streamLibraryItem.media.chapters
++      } catch (error) {
++        return null
++      }
++      if (!audioBookChapters) return null
++      const chapter = audioBookChapters.find((chapter) => chapter.start <= currentTime && currentTime < chapter.end)
++      return chapter.title || audioBookChapters[audioBookChapters.length - 1].title
++    },
++    findChapterHref(title) {
++      const findInToc = (items) => {
++        for (let item of items) {
++          if (item.label.trim() === title) return item.href
++          if (item.subitems) {
++            const result = findInToc(item.subitems)
++            if (result) return result
++          }
++        }
++        return null
++      }
++      return findInToc(this.rendition.book.navigation.toc)
+     }
+   },
+-  mounted() {
++  async mounted() {
+     this.windowWidth = window.innerWidth
+     this.windowHeight = window.innerHeight
+     window.addEventListener('resize', this.resize)
+-    this.initEpub()
++
++    await this.initEpub()
+   },
+   beforeDestroy() {
+     window.removeEventListener('resize', this.resize)
+diff --git a/client/strings/bg.json b/client/strings/bg.json
+index 3bcdea482..f1ca5d683 100644
+--- a/client/strings/bg.json
++++ b/client/strings/bg.json
+@@ -47,6 +47,7 @@
+   "ButtonNext": "Next",
+   "ButtonNextChapter": "Следваща Глава",
+   "ButtonOk": "Добре",
++  "ButtonOpenCurrentChapter": "Open Current Chapter",
+   "ButtonOpenFeed": "Отвори Feed",
+   "ButtonOpenManager": "Отвори Мениджър",
+   "ButtonPause": "Пауза",
+diff --git a/client/strings/bn.json b/client/strings/bn.json
+index 09db5382f..f62eaa25f 100644
+--- a/client/strings/bn.json
++++ b/client/strings/bn.json
+@@ -47,6 +47,7 @@
+   "ButtonNext": "পরবর্তী",
+   "ButtonNextChapter": "পরবর্তী অধ্যায়",
+   "ButtonOk": "ঠিক আছে",
++  "ButtonOpenCurrentChapter": "Open Current Chapter",
+   "ButtonOpenFeed": "ফিড খুলুন",
+   "ButtonOpenManager": "ম্যানেজার খুলুন",
+   "ButtonPause": "বিরতি",
+diff --git a/client/strings/cs.json b/client/strings/cs.json
+index 3ffb08df1..5491d69d8 100644
+--- a/client/strings/cs.json
++++ b/client/strings/cs.json
+@@ -47,6 +47,7 @@
+   "ButtonNext": "Next",
+   "ButtonNextChapter": "Další Kapitola",
+   "ButtonOk": "Ok",
++  "ButtonOpenCurrentChapter": "Open Current Chapter",
+   "ButtonOpenFeed": "Otevřít kanál",
+   "ButtonOpenManager": "Otevřít správce",
+   "ButtonPause": "Pause",
+diff --git a/client/strings/da.json b/client/strings/da.json
+index 9dfbd8f24..46f224591 100644
+--- a/client/strings/da.json
++++ b/client/strings/da.json
+@@ -47,6 +47,7 @@
+   "ButtonNext": "Next",
+   "ButtonNextChapter": "Next Chapter",
+   "ButtonOk": "OK",
++  "ButtonOpenCurrentChapter": "Open Current Chapter",
+   "ButtonOpenFeed": "Åbn feed",
+   "ButtonOpenManager": "Åbn manager",
+   "ButtonPause": "Pause",
+diff --git a/client/strings/de.json b/client/strings/de.json
+index 749a0973d..42e48b69e 100644
+--- a/client/strings/de.json
++++ b/client/strings/de.json
+@@ -47,6 +47,7 @@
+   "ButtonNext": "Vor",
+   "ButtonNextChapter": "Nächstes Kapitel",
+   "ButtonOk": "Ok",
++  "ButtonOpenCurrentChapter": "Open Current Chapter",
+   "ButtonOpenFeed": "Feed öffnen",
+   "ButtonOpenManager": "Manager öffnen",
+   "ButtonPause": "Pause",
+diff --git a/client/strings/en-us.json b/client/strings/en-us.json
+index 7420c1e75..e809c20d1 100644
+--- a/client/strings/en-us.json
++++ b/client/strings/en-us.json
+@@ -48,6 +48,7 @@
+   "ButtonNextChapter": "Next Chapter",
+   "ButtonNextItemInQueue": "Next Item in Queue",
+   "ButtonOk": "Ok",
++  "ButtonOpenCurrentChapter": "Open Current Chapter",
+   "ButtonOpenFeed": "Open Feed",
+   "ButtonOpenManager": "Open Manager",
+   "ButtonPause": "Pause",
+diff --git a/client/strings/es.json b/client/strings/es.json
+index 4f9c6141c..b70655ea9 100644
+--- a/client/strings/es.json
++++ b/client/strings/es.json
+@@ -47,6 +47,7 @@
+   "ButtonNext": "Next",
+   "ButtonNextChapter": "Siguiente Capítulo",
+   "ButtonOk": "Ok",
++  "ButtonOpenCurrentChapter": "Open Current Chapter",
+   "ButtonOpenFeed": "Abrir fuente",
+   "ButtonOpenManager": "Abrir Editor",
+   "ButtonPause": "Pausar",
+diff --git a/client/strings/et.json b/client/strings/et.json
+index 2a1b61ed5..e7a9bbe9b 100644
+--- a/client/strings/et.json
++++ b/client/strings/et.json
+@@ -47,6 +47,7 @@
+   "ButtonNext": "Next",
+   "ButtonNextChapter": "Järgmine peatükk",
+   "ButtonOk": "Ok",
++  "ButtonOpenCurrentChapter": "Open Current Chapter",
+   "ButtonOpenFeed": "Ava voog",
+   "ButtonOpenManager": "Ava haldur",
+   "ButtonPause": "Peata",
+diff --git a/client/strings/fi.json b/client/strings/fi.json
+index 95e925499..df3a6d58b 100644
+--- a/client/strings/fi.json
++++ b/client/strings/fi.json
+@@ -47,6 +47,7 @@
+   "ButtonNext": "Seuraava",
+   "ButtonNextChapter": "Seuraava luku",
+   "ButtonOk": "Ok",
++  "ButtonOpenCurrentChapter": "Open Current Chapter",
+   "ButtonOpenFeed": "Avaa syöte",
+   "ButtonOpenManager": "Avaa hallinta",
+   "ButtonPause": "Pysäytä",
+diff --git a/client/strings/fr.json b/client/strings/fr.json
+index 32520aaa5..473d5f717 100644
+--- a/client/strings/fr.json
++++ b/client/strings/fr.json
+@@ -47,6 +47,7 @@
+   "ButtonNext": "Suivant",
+   "ButtonNextChapter": "Chapitre suivant",
+   "ButtonOk": "Ok",
++  "ButtonOpenCurrentChapter": "Open Current Chapter",
+   "ButtonOpenFeed": "Ouvrir le flux",
+   "ButtonOpenManager": "Ouvrir le gestionnaire",
+   "ButtonPause": "Pause",
+diff --git a/client/strings/gu.json b/client/strings/gu.json
+index c38a005f7..d4ef53a68 100644
+--- a/client/strings/gu.json
++++ b/client/strings/gu.json
+@@ -47,6 +47,7 @@
+   "ButtonNext": "Next",
+   "ButtonNextChapter": "Next Chapter",
+   "ButtonOk": "ઓકે",
++  "ButtonOpenCurrentChapter": "Open Current Chapter",
+   "ButtonOpenFeed": "ફીડ ખોલો",
+   "ButtonOpenManager": "મેનેજર ખોલો",
+   "ButtonPause": "Pause",
+diff --git a/client/strings/he.json b/client/strings/he.json
+index 514639405..930dcb413 100644
+--- a/client/strings/he.json
++++ b/client/strings/he.json
+@@ -47,6 +47,7 @@
+   "ButtonNext": "הבא",
+   "ButtonNextChapter": "פרק הבא",
+   "ButtonOk": "אישור",
++  "ButtonOpenCurrentChapter": "Open Current Chapter",
+   "ButtonOpenFeed": "פתח פיד",
+   "ButtonOpenManager": "פתח מנהל",
+   "ButtonPause": "השהה",
+diff --git a/client/strings/hi.json b/client/strings/hi.json
+index f2112979f..f16cffb03 100644
+--- a/client/strings/hi.json
++++ b/client/strings/hi.json
+@@ -47,6 +47,7 @@
+   "ButtonNext": "Next",
+   "ButtonNextChapter": "Next Chapter",
+   "ButtonOk": "ठीक है",
++  "ButtonOpenCurrentChapter": "Open Current Chapter",
+   "ButtonOpenFeed": "फ़ीड खोलें",
+   "ButtonOpenManager": "मैनेजर खोलें",
+   "ButtonPause": "Pause",
+diff --git a/client/strings/hr.json b/client/strings/hr.json
+index ebe3207cf..ae2f66241 100644
+--- a/client/strings/hr.json
++++ b/client/strings/hr.json
+@@ -47,6 +47,7 @@
+   "ButtonNext": "Next",
+   "ButtonNextChapter": "Next Chapter",
+   "ButtonOk": "Ok",
++  "ButtonOpenCurrentChapter": "Open Current Chapter",
+   "ButtonOpenFeed": "Otvori feed",
+   "ButtonOpenManager": "Otvori menadžera",
+   "ButtonPause": "Pause",
+diff --git a/client/strings/hu.json b/client/strings/hu.json
+index cc12227a5..2576a7fae 100644
+--- a/client/strings/hu.json
++++ b/client/strings/hu.json
+@@ -47,6 +47,7 @@
+   "ButtonNext": "Next",
+   "ButtonNextChapter": "Következő fejezet",
+   "ButtonOk": "Oké",
++  "ButtonOpenCurrentChapter": "Open Current Chapter",
+   "ButtonOpenFeed": "Hírcsatorna megnyitása",
+   "ButtonOpenManager": "Kezelő megnyitása",
+   "ButtonPause": "Szünet",
+diff --git a/client/strings/it.json b/client/strings/it.json
+index c1251621f..bb9e3dfc0 100644
+--- a/client/strings/it.json
++++ b/client/strings/it.json
+@@ -47,6 +47,7 @@
+   "ButtonNext": "Prossimo",
+   "ButtonNextChapter": "Prossimo Capitolo",
+   "ButtonOk": "Ok",
++  "ButtonOpenCurrentChapter": "Open Current Chapter",
+   "ButtonOpenFeed": "Apri il flusso",
+   "ButtonOpenManager": "Apri Manager",
+   "ButtonPause": "Pausa",
+diff --git a/client/strings/lt.json b/client/strings/lt.json
+index 2e064aff1..8f8bff7ce 100644
+--- a/client/strings/lt.json
++++ b/client/strings/lt.json
+@@ -47,6 +47,7 @@
+   "ButtonNext": "Next",
+   "ButtonNextChapter": "Kitas Skyrius",
+   "ButtonOk": "Ok",
++  "ButtonOpenCurrentChapter": "Open Current Chapter",
+   "ButtonOpenFeed": "Atidaryti srautą",
+   "ButtonOpenManager": "Atidaryti tvarkyklę",
+   "ButtonPause": "Pause",
+diff --git a/client/strings/nl.json b/client/strings/nl.json
+index e209c3a50..70f9705ed 100644
+--- a/client/strings/nl.json
++++ b/client/strings/nl.json
+@@ -47,6 +47,7 @@
+   "ButtonNext": "Volgende",
+   "ButtonNextChapter": "Volgend hoofdstuk",
+   "ButtonOk": "Ok",
++  "ButtonOpenCurrentChapter": "Open Current Chapter",
+   "ButtonOpenFeed": "Feed openen",
+   "ButtonOpenManager": "Manager openen",
+   "ButtonPause": "Pauze",
+diff --git a/client/strings/no.json b/client/strings/no.json
+index 6db2d98fb..3254d8851 100644
+--- a/client/strings/no.json
++++ b/client/strings/no.json
+@@ -47,6 +47,7 @@
+   "ButtonNext": "Next",
+   "ButtonNextChapter": "Neste Kapittel",
+   "ButtonOk": "Ok",
++  "ButtonOpenCurrentChapter": "Open Current Chapter",
+   "ButtonOpenFeed": "Åpne Feed",
+   "ButtonOpenManager": "Åpne behandler",
+   "ButtonPause": "Pause",
+diff --git a/client/strings/pl.json b/client/strings/pl.json
+index 0fe8535dd..7f7d7e1b8 100644
+--- a/client/strings/pl.json
++++ b/client/strings/pl.json
+@@ -47,6 +47,7 @@
+   "ButtonNext": "Następny",
+   "ButtonNextChapter": "Następny rozdział",
+   "ButtonOk": "Ok",
++  "ButtonOpenCurrentChapter": "Open Current Chapter",
+   "ButtonOpenFeed": "Otwórz feed",
+   "ButtonOpenManager": "Otwórz menadżera",
+   "ButtonPause": "Pause",
+diff --git a/client/strings/pt-br.json b/client/strings/pt-br.json
+index 027e51125..af9b9999e 100644
+--- a/client/strings/pt-br.json
++++ b/client/strings/pt-br.json
+@@ -47,6 +47,7 @@
+   "ButtonNext": "Próximo",
+   "ButtonNextChapter": "Próximo Capítulo",
+   "ButtonOk": "Ok",
++  "ButtonOpenCurrentChapter": "Open Current Chapter",
+   "ButtonOpenFeed": "Abrir Feed",
+   "ButtonOpenManager": "Abrir Gerenciador",
+   "ButtonPause": "Pausar",
+diff --git a/client/strings/ru.json b/client/strings/ru.json
+index f0cf56004..a7e21c5f7 100644
+--- a/client/strings/ru.json
++++ b/client/strings/ru.json
+@@ -47,6 +47,7 @@
+   "ButtonNext": "Next",
+   "ButtonNextChapter": "Следующая глава",
+   "ButtonOk": "Ok",
++  "ButtonOpenCurrentChapter": "Open Current Chapter",
+   "ButtonOpenFeed": "Открыть канал",
+   "ButtonOpenManager": "Открыть менеджер",
+   "ButtonPause": "Pause",
+diff --git a/client/strings/sv.json b/client/strings/sv.json
+index 59da191fb..ba9aa4023 100644
+--- a/client/strings/sv.json
++++ b/client/strings/sv.json
+@@ -47,6 +47,7 @@
+   "ButtonNext": "Next",
+   "ButtonNextChapter": "Next Chapter",
+   "ButtonOk": "Okej",
++  "ButtonOpenCurrentChapter": "Open Current Chapter",
+   "ButtonOpenFeed": "Öppna flöde",
+   "ButtonOpenManager": "Öppna Manager",
+   "ButtonPause": "Pause",
+diff --git a/client/strings/uk.json b/client/strings/uk.json
+index ba6575d8d..36c17cd9b 100644
+--- a/client/strings/uk.json
++++ b/client/strings/uk.json
+@@ -47,6 +47,7 @@
+   "ButtonNext": "Наступний",
+   "ButtonNextChapter": "Наступна глава",
+   "ButtonOk": "Гаразд",
++  "ButtonOpenCurrentChapter": "Open Current Chapter",
+   "ButtonOpenFeed": "Відкрити стрічку",
+   "ButtonOpenManager": "Відкрити менеджер",
+   "ButtonPause": "Пауза",
+diff --git a/client/strings/vi-vn.json b/client/strings/vi-vn.json
+index b92f48189..78dab8ae1 100644
+--- a/client/strings/vi-vn.json
++++ b/client/strings/vi-vn.json
+@@ -47,6 +47,7 @@
+   "ButtonNext": "Tiếp Theo",
+   "ButtonNextChapter": "Chương Tiếp Theo",
+   "ButtonOk": "Ok",
++  "ButtonOpenCurrentChapter": "Open Current Chapter",
+   "ButtonOpenFeed": "Mở Feed",
+   "ButtonOpenManager": "Mở Quản Lý",
+   "ButtonPause": "Tạm Dừng",
+diff --git a/client/strings/zh-cn.json b/client/strings/zh-cn.json
+index b15eb99e9..70e716614 100644
+--- a/client/strings/zh-cn.json
++++ b/client/strings/zh-cn.json
+@@ -47,6 +47,7 @@
+   "ButtonNext": "下一个",
+   "ButtonNextChapter": "下一章节",
+   "ButtonOk": "确定",
++  "ButtonOpenCurrentChapter": "Open Current Chapter",
+   "ButtonOpenFeed": "打开源",
+   "ButtonOpenManager": "打开管理器",
+   "ButtonPause": "暂停",
+diff --git a/client/strings/zh-tw.json b/client/strings/zh-tw.json
+index 8687053f8..2d71118f5 100644
+--- a/client/strings/zh-tw.json
++++ b/client/strings/zh-tw.json
+@@ -47,6 +47,7 @@
+   "ButtonNext": "下個",
+   "ButtonNextChapter": "下個章節",
+   "ButtonOk": "確定",
++  "ButtonOpenCurrentChapter": "Open Current Chapter",
+   "ButtonOpenFeed": "打開源",
+   "ButtonOpenManager": "打開管理器",
+   "ButtonPause": "暫停",
+
+From ae50fb8df8ae12a811603512d6748c3ff069786e Mon Sep 17 00:00:00 2001
+From: Faizan Zafar <faizan.zafar01@student.csulb.edu>
+Date: Sun, 25 Aug 2024 16:28:34 -0700
+Subject: [PATCH 2/3] refactor: normalize chapter titles for finding chapter
+ hrefs
+
+---
+ client/components/readers/EpubReader.vue | 5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/client/components/readers/EpubReader.vue b/client/components/readers/EpubReader.vue
+index 14f9c6065..c141812de 100644
+--- a/client/components/readers/EpubReader.vue
++++ b/client/components/readers/EpubReader.vue
+@@ -470,9 +470,12 @@ export default {
+       return chapter.title || audioBookChapters[audioBookChapters.length - 1].title
+     },
+     findChapterHref(title) {
++      const normalizeString = (str) => {
++        return str.replace(/[^a-zA-Z0-9]/g, '').toLowerCase()
++      }
+       const findInToc = (items) => {
+         for (let item of items) {
+-          if (item.label.trim() === title) return item.href
++          if (normalizeString(item.label) === normalizeString(title)) return item.href
+           if (item.subitems) {
+             const result = findInToc(item.subitems)
+             if (result) return result
+
+From ecd73b180561e1f8da81f10c61032856047ac9c6 Mon Sep 17 00:00:00 2001
+From: Faizan Zafar <faizan.zafar01@student.csulb.edu>
+Date: Sun, 25 Aug 2024 16:35:48 -0700
+Subject: [PATCH 3/3] removed non-en strings
+
+---
+ client/strings/bg.json    | 1 -
+ client/strings/bn.json    | 1 -
+ client/strings/cs.json    | 1 -
+ client/strings/da.json    | 1 -
+ client/strings/de.json    | 1 -
+ client/strings/es.json    | 1 -
+ client/strings/et.json    | 1 -
+ client/strings/fi.json    | 1 -
+ client/strings/fr.json    | 1 -
+ client/strings/gu.json    | 1 -
+ client/strings/he.json    | 1 -
+ client/strings/hi.json    | 1 -
+ client/strings/hr.json    | 1 -
+ client/strings/hu.json    | 1 -
+ client/strings/it.json    | 1 -
+ client/strings/lt.json    | 1 -
+ client/strings/nl.json    | 1 -
+ client/strings/no.json    | 1 -
+ client/strings/pl.json    | 1 -
+ client/strings/pt-br.json | 1 -
+ client/strings/ru.json    | 1 -
+ client/strings/sv.json    | 1 -
+ client/strings/uk.json    | 1 -
+ client/strings/vi-vn.json | 1 -
+ client/strings/zh-cn.json | 1 -
+ client/strings/zh-tw.json | 1 -
+ 26 files changed, 26 deletions(-)
+
+diff --git a/client/strings/bg.json b/client/strings/bg.json
+index f1ca5d683..3bcdea482 100644
+--- a/client/strings/bg.json
++++ b/client/strings/bg.json
+@@ -47,7 +47,6 @@
+   "ButtonNext": "Next",
+   "ButtonNextChapter": "Следваща Глава",
+   "ButtonOk": "Добре",
+-  "ButtonOpenCurrentChapter": "Open Current Chapter",
+   "ButtonOpenFeed": "Отвори Feed",
+   "ButtonOpenManager": "Отвори Мениджър",
+   "ButtonPause": "Пауза",
+diff --git a/client/strings/bn.json b/client/strings/bn.json
+index f62eaa25f..09db5382f 100644
+--- a/client/strings/bn.json
++++ b/client/strings/bn.json
+@@ -47,7 +47,6 @@
+   "ButtonNext": "পরবর্তী",
+   "ButtonNextChapter": "পরবর্তী অধ্যায়",
+   "ButtonOk": "ঠিক আছে",
+-  "ButtonOpenCurrentChapter": "Open Current Chapter",
+   "ButtonOpenFeed": "ফিড খুলুন",
+   "ButtonOpenManager": "ম্যানেজার খুলুন",
+   "ButtonPause": "বিরতি",
+diff --git a/client/strings/cs.json b/client/strings/cs.json
+index 5491d69d8..3ffb08df1 100644
+--- a/client/strings/cs.json
++++ b/client/strings/cs.json
+@@ -47,7 +47,6 @@
+   "ButtonNext": "Next",
+   "ButtonNextChapter": "Další Kapitola",
+   "ButtonOk": "Ok",
+-  "ButtonOpenCurrentChapter": "Open Current Chapter",
+   "ButtonOpenFeed": "Otevřít kanál",
+   "ButtonOpenManager": "Otevřít správce",
+   "ButtonPause": "Pause",
+diff --git a/client/strings/da.json b/client/strings/da.json
+index 46f224591..9dfbd8f24 100644
+--- a/client/strings/da.json
++++ b/client/strings/da.json
+@@ -47,7 +47,6 @@
+   "ButtonNext": "Next",
+   "ButtonNextChapter": "Next Chapter",
+   "ButtonOk": "OK",
+-  "ButtonOpenCurrentChapter": "Open Current Chapter",
+   "ButtonOpenFeed": "Åbn feed",
+   "ButtonOpenManager": "Åbn manager",
+   "ButtonPause": "Pause",
+diff --git a/client/strings/de.json b/client/strings/de.json
+index 42e48b69e..749a0973d 100644
+--- a/client/strings/de.json
++++ b/client/strings/de.json
+@@ -47,7 +47,6 @@
+   "ButtonNext": "Vor",
+   "ButtonNextChapter": "Nächstes Kapitel",
+   "ButtonOk": "Ok",
+-  "ButtonOpenCurrentChapter": "Open Current Chapter",
+   "ButtonOpenFeed": "Feed öffnen",
+   "ButtonOpenManager": "Manager öffnen",
+   "ButtonPause": "Pause",
+diff --git a/client/strings/es.json b/client/strings/es.json
+index b70655ea9..4f9c6141c 100644
+--- a/client/strings/es.json
++++ b/client/strings/es.json
+@@ -47,7 +47,6 @@
+   "ButtonNext": "Next",
+   "ButtonNextChapter": "Siguiente Capítulo",
+   "ButtonOk": "Ok",
+-  "ButtonOpenCurrentChapter": "Open Current Chapter",
+   "ButtonOpenFeed": "Abrir fuente",
+   "ButtonOpenManager": "Abrir Editor",
+   "ButtonPause": "Pausar",
+diff --git a/client/strings/et.json b/client/strings/et.json
+index e7a9bbe9b..2a1b61ed5 100644
+--- a/client/strings/et.json
++++ b/client/strings/et.json
+@@ -47,7 +47,6 @@
+   "ButtonNext": "Next",
+   "ButtonNextChapter": "Järgmine peatükk",
+   "ButtonOk": "Ok",
+-  "ButtonOpenCurrentChapter": "Open Current Chapter",
+   "ButtonOpenFeed": "Ava voog",
+   "ButtonOpenManager": "Ava haldur",
+   "ButtonPause": "Peata",
+diff --git a/client/strings/fi.json b/client/strings/fi.json
+index df3a6d58b..95e925499 100644
+--- a/client/strings/fi.json
++++ b/client/strings/fi.json
+@@ -47,7 +47,6 @@
+   "ButtonNext": "Seuraava",
+   "ButtonNextChapter": "Seuraava luku",
+   "ButtonOk": "Ok",
+-  "ButtonOpenCurrentChapter": "Open Current Chapter",
+   "ButtonOpenFeed": "Avaa syöte",
+   "ButtonOpenManager": "Avaa hallinta",
+   "ButtonPause": "Pysäytä",
+diff --git a/client/strings/fr.json b/client/strings/fr.json
+index 473d5f717..32520aaa5 100644
+--- a/client/strings/fr.json
++++ b/client/strings/fr.json
+@@ -47,7 +47,6 @@
+   "ButtonNext": "Suivant",
+   "ButtonNextChapter": "Chapitre suivant",
+   "ButtonOk": "Ok",
+-  "ButtonOpenCurrentChapter": "Open Current Chapter",
+   "ButtonOpenFeed": "Ouvrir le flux",
+   "ButtonOpenManager": "Ouvrir le gestionnaire",
+   "ButtonPause": "Pause",
+diff --git a/client/strings/gu.json b/client/strings/gu.json
+index d4ef53a68..c38a005f7 100644
+--- a/client/strings/gu.json
++++ b/client/strings/gu.json
+@@ -47,7 +47,6 @@
+   "ButtonNext": "Next",
+   "ButtonNextChapter": "Next Chapter",
+   "ButtonOk": "ઓકે",
+-  "ButtonOpenCurrentChapter": "Open Current Chapter",
+   "ButtonOpenFeed": "ફીડ ખોલો",
+   "ButtonOpenManager": "મેનેજર ખોલો",
+   "ButtonPause": "Pause",
+diff --git a/client/strings/he.json b/client/strings/he.json
+index 930dcb413..514639405 100644
+--- a/client/strings/he.json
++++ b/client/strings/he.json
+@@ -47,7 +47,6 @@
+   "ButtonNext": "הבא",
+   "ButtonNextChapter": "פרק הבא",
+   "ButtonOk": "אישור",
+-  "ButtonOpenCurrentChapter": "Open Current Chapter",
+   "ButtonOpenFeed": "פתח פיד",
+   "ButtonOpenManager": "פתח מנהל",
+   "ButtonPause": "השהה",
+diff --git a/client/strings/hi.json b/client/strings/hi.json
+index f16cffb03..f2112979f 100644
+--- a/client/strings/hi.json
++++ b/client/strings/hi.json
+@@ -47,7 +47,6 @@
+   "ButtonNext": "Next",
+   "ButtonNextChapter": "Next Chapter",
+   "ButtonOk": "ठीक है",
+-  "ButtonOpenCurrentChapter": "Open Current Chapter",
+   "ButtonOpenFeed": "फ़ीड खोलें",
+   "ButtonOpenManager": "मैनेजर खोलें",
+   "ButtonPause": "Pause",
+diff --git a/client/strings/hr.json b/client/strings/hr.json
+index ae2f66241..ebe3207cf 100644
+--- a/client/strings/hr.json
++++ b/client/strings/hr.json
+@@ -47,7 +47,6 @@
+   "ButtonNext": "Next",
+   "ButtonNextChapter": "Next Chapter",
+   "ButtonOk": "Ok",
+-  "ButtonOpenCurrentChapter": "Open Current Chapter",
+   "ButtonOpenFeed": "Otvori feed",
+   "ButtonOpenManager": "Otvori menadžera",
+   "ButtonPause": "Pause",
+diff --git a/client/strings/hu.json b/client/strings/hu.json
+index 2576a7fae..cc12227a5 100644
+--- a/client/strings/hu.json
++++ b/client/strings/hu.json
+@@ -47,7 +47,6 @@
+   "ButtonNext": "Next",
+   "ButtonNextChapter": "Következő fejezet",
+   "ButtonOk": "Oké",
+-  "ButtonOpenCurrentChapter": "Open Current Chapter",
+   "ButtonOpenFeed": "Hírcsatorna megnyitása",
+   "ButtonOpenManager": "Kezelő megnyitása",
+   "ButtonPause": "Szünet",
+diff --git a/client/strings/it.json b/client/strings/it.json
+index bb9e3dfc0..c1251621f 100644
+--- a/client/strings/it.json
++++ b/client/strings/it.json
+@@ -47,7 +47,6 @@
+   "ButtonNext": "Prossimo",
+   "ButtonNextChapter": "Prossimo Capitolo",
+   "ButtonOk": "Ok",
+-  "ButtonOpenCurrentChapter": "Open Current Chapter",
+   "ButtonOpenFeed": "Apri il flusso",
+   "ButtonOpenManager": "Apri Manager",
+   "ButtonPause": "Pausa",
+diff --git a/client/strings/lt.json b/client/strings/lt.json
+index 8f8bff7ce..2e064aff1 100644
+--- a/client/strings/lt.json
++++ b/client/strings/lt.json
+@@ -47,7 +47,6 @@
+   "ButtonNext": "Next",
+   "ButtonNextChapter": "Kitas Skyrius",
+   "ButtonOk": "Ok",
+-  "ButtonOpenCurrentChapter": "Open Current Chapter",
+   "ButtonOpenFeed": "Atidaryti srautą",
+   "ButtonOpenManager": "Atidaryti tvarkyklę",
+   "ButtonPause": "Pause",
+diff --git a/client/strings/nl.json b/client/strings/nl.json
+index 70f9705ed..e209c3a50 100644
+--- a/client/strings/nl.json
++++ b/client/strings/nl.json
+@@ -47,7 +47,6 @@
+   "ButtonNext": "Volgende",
+   "ButtonNextChapter": "Volgend hoofdstuk",
+   "ButtonOk": "Ok",
+-  "ButtonOpenCurrentChapter": "Open Current Chapter",
+   "ButtonOpenFeed": "Feed openen",
+   "ButtonOpenManager": "Manager openen",
+   "ButtonPause": "Pauze",
+diff --git a/client/strings/no.json b/client/strings/no.json
+index 3254d8851..6db2d98fb 100644
+--- a/client/strings/no.json
++++ b/client/strings/no.json
+@@ -47,7 +47,6 @@
+   "ButtonNext": "Next",
+   "ButtonNextChapter": "Neste Kapittel",
+   "ButtonOk": "Ok",
+-  "ButtonOpenCurrentChapter": "Open Current Chapter",
+   "ButtonOpenFeed": "Åpne Feed",
+   "ButtonOpenManager": "Åpne behandler",
+   "ButtonPause": "Pause",
+diff --git a/client/strings/pl.json b/client/strings/pl.json
+index 7f7d7e1b8..0fe8535dd 100644
+--- a/client/strings/pl.json
++++ b/client/strings/pl.json
+@@ -47,7 +47,6 @@
+   "ButtonNext": "Następny",
+   "ButtonNextChapter": "Następny rozdział",
+   "ButtonOk": "Ok",
+-  "ButtonOpenCurrentChapter": "Open Current Chapter",
+   "ButtonOpenFeed": "Otwórz feed",
+   "ButtonOpenManager": "Otwórz menadżera",
+   "ButtonPause": "Pause",
+diff --git a/client/strings/pt-br.json b/client/strings/pt-br.json
+index af9b9999e..027e51125 100644
+--- a/client/strings/pt-br.json
++++ b/client/strings/pt-br.json
+@@ -47,7 +47,6 @@
+   "ButtonNext": "Próximo",
+   "ButtonNextChapter": "Próximo Capítulo",
+   "ButtonOk": "Ok",
+-  "ButtonOpenCurrentChapter": "Open Current Chapter",
+   "ButtonOpenFeed": "Abrir Feed",
+   "ButtonOpenManager": "Abrir Gerenciador",
+   "ButtonPause": "Pausar",
+diff --git a/client/strings/ru.json b/client/strings/ru.json
+index a7e21c5f7..f0cf56004 100644
+--- a/client/strings/ru.json
++++ b/client/strings/ru.json
+@@ -47,7 +47,6 @@
+   "ButtonNext": "Next",
+   "ButtonNextChapter": "Следующая глава",
+   "ButtonOk": "Ok",
+-  "ButtonOpenCurrentChapter": "Open Current Chapter",
+   "ButtonOpenFeed": "Открыть канал",
+   "ButtonOpenManager": "Открыть менеджер",
+   "ButtonPause": "Pause",
+diff --git a/client/strings/sv.json b/client/strings/sv.json
+index ba9aa4023..59da191fb 100644
+--- a/client/strings/sv.json
++++ b/client/strings/sv.json
+@@ -47,7 +47,6 @@
+   "ButtonNext": "Next",
+   "ButtonNextChapter": "Next Chapter",
+   "ButtonOk": "Okej",
+-  "ButtonOpenCurrentChapter": "Open Current Chapter",
+   "ButtonOpenFeed": "Öppna flöde",
+   "ButtonOpenManager": "Öppna Manager",
+   "ButtonPause": "Pause",
+diff --git a/client/strings/uk.json b/client/strings/uk.json
+index 36c17cd9b..ba6575d8d 100644
+--- a/client/strings/uk.json
++++ b/client/strings/uk.json
+@@ -47,7 +47,6 @@
+   "ButtonNext": "Наступний",
+   "ButtonNextChapter": "Наступна глава",
+   "ButtonOk": "Гаразд",
+-  "ButtonOpenCurrentChapter": "Open Current Chapter",
+   "ButtonOpenFeed": "Відкрити стрічку",
+   "ButtonOpenManager": "Відкрити менеджер",
+   "ButtonPause": "Пауза",
+diff --git a/client/strings/vi-vn.json b/client/strings/vi-vn.json
+index 78dab8ae1..b92f48189 100644
+--- a/client/strings/vi-vn.json
++++ b/client/strings/vi-vn.json
+@@ -47,7 +47,6 @@
+   "ButtonNext": "Tiếp Theo",
+   "ButtonNextChapter": "Chương Tiếp Theo",
+   "ButtonOk": "Ok",
+-  "ButtonOpenCurrentChapter": "Open Current Chapter",
+   "ButtonOpenFeed": "Mở Feed",
+   "ButtonOpenManager": "Mở Quản Lý",
+   "ButtonPause": "Tạm Dừng",
+diff --git a/client/strings/zh-cn.json b/client/strings/zh-cn.json
+index 70e716614..b15eb99e9 100644
+--- a/client/strings/zh-cn.json
++++ b/client/strings/zh-cn.json
+@@ -47,7 +47,6 @@
+   "ButtonNext": "下一个",
+   "ButtonNextChapter": "下一章节",
+   "ButtonOk": "确定",
+-  "ButtonOpenCurrentChapter": "Open Current Chapter",
+   "ButtonOpenFeed": "打开源",
+   "ButtonOpenManager": "打开管理器",
+   "ButtonPause": "暂停",
+diff --git a/client/strings/zh-tw.json b/client/strings/zh-tw.json
+index 2d71118f5..8687053f8 100644
+--- a/client/strings/zh-tw.json
++++ b/client/strings/zh-tw.json
+@@ -47,7 +47,6 @@
+   "ButtonNext": "下個",
+   "ButtonNextChapter": "下個章節",
+   "ButtonOk": "確定",
+-  "ButtonOpenCurrentChapter": "Open Current Chapter",
+   "ButtonOpenFeed": "打開源",
+   "ButtonOpenManager": "打開管理器",
+   "ButtonPause": "暫停",

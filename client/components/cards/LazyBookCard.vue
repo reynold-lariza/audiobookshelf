@@ -504,6 +504,10 @@ export default {
         if (this.libraryItemIdStreaming && !this.isStreamingFromDifferentLibrary) {
           if (!this.isQueued) {
             items.push({
+              func: 'playNext',
+              text: 'Play Next'
+            })
+            items.push({
               func: 'addToQueue',
               text: this.$strings.ButtonQueueAddItem
             })
@@ -587,6 +591,10 @@ export default {
       if (!this.isPodcast) {
         if (this.libraryItemIdStreaming && !this.isStreamingFromDifferentLibrary) {
           if (!this.isQueued) {
+            items.push({
+              func: 'playNext',
+              text: 'Play Next'
+            })
             items.push({
               func: 'addToQueue',
               text: this.$strings.ButtonQueueAddItem
@@ -887,6 +895,34 @@ export default {
         }
       }
       this.store.commit('addItemToQueue', queueItem)
+    },
+    playNext() {
+      let queueItem = null
+      if (this.isPodcast) {
+        if (!this.recentEpisode) return
+        queueItem = {
+          libraryItemId: this.libraryItemId,
+          libraryId: this.libraryId,
+          episodeId: this.recentEpisode.id,
+          title: this.recentEpisode.title,
+          subtitle: this.mediaMetadata.title,
+          caption: this.recentEpisode.publishedAt ? this.$getString('LabelPublishedDate', [this.$formatDate(this.recentEpisode.publishedAt, this.dateFormat)]) : this.$strings.LabelUnknownPublishDate,
+          duration: this.recentEpisode.audioFile.duration || null,
+          coverPath: this.media.coverPath || null
+        }
+      } else {
+        queueItem = {
+          libraryItemId: this.libraryItemId,
+          libraryId: this.libraryId,
+          episodeId: null,
+          title: this.title,
+          subtitle: this.author,
+          caption: '',
+          duration: this.media.duration || null,
+          coverPath: this.media.coverPath || null
+        }
+      }
+      this.store.commit('addItemToTopOfQueue', queueItem)
     },
     removeFromQueue() {
       const episodeId = this.recentEpisode ? this.recentEpisode.id : null

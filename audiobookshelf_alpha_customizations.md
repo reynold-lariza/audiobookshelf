@@ -1,4 +1,4 @@
-# Audiobookshelf Alpha Build (v2.32.1b) Customizations
+# Audiobookshelf Alpha Build (v2.32.1d) Customizations
 
 This file documents the custom modifications made to the local audiobookshelf repository.
 
@@ -27,6 +27,20 @@ This file documents the custom modifications made to the local audiobookshelf re
 22. **PR #4976:** Case-Insensitive Matching - Prevents duplicate authors/series creation during import caused by capitalization differences.
 23. **PR #4807:** Hide/Unhide Series - Adds a feature to hide specific series from library shelves without deleting the files.
 24. **PR #4782:** Smarter Toast Placement - Prevents toast notifications from overlapping with the media player bar at the bottom of the screen.
+25. **PR #5045:** Upload to Existing Folders - Allows adding new files to a book's folder without deleting and re-uploading everything.
+26. **PR #4788:** Reliable Metadata Search - Increases search timeout to 120s to handle slow or throttled metadata providers.
+27. **PR #5015:** Log Purge Bugfix - Centralizes and improves automated purging of daily and scanner logs.
+28. **PR #4938:** Series "Started" Filter - Adds a filter to the Series page to find series you've begun but not finished.
+29. **PR #4828:** Narrator Sorting - Adds interactive sorting by name and book count to the Narrators page.
+30. **PR #4907:** Better Playlist Controls - Adds buttons to quickly move items to the top or bottom of a playlist.
+31. **PR #4748:** MusicBrainz Provider - Adds MusicBrainz as a new metadata and cover art provider.
+32. **PR #4409:** Podcast Release Calendar - Adds a new Calendar page to visualize podcast episode release dates.
+33. **PR #3334:** Sync Audiobook to E-book - Adds a button to the player to open the companion EPUB file to the current chapter.
+34. **PR #4857:** Robust Metadata ID Matching - Stores ABS IDs in `metadata.json` to prevent data loss when moving files.
+35. **PR #4681:** Read Embedded Tags - Adds support for reading embedded "tags" metadata from audio file ID3 tags.
+36. **PR #4594:** Podcast Metadata Embedding - Allows writing metadata changes back to podcast audio files.
+37. **PR #2464:** "Play Next" in Queue - Adds buttons to book cards and podcast episodes to instantly insert an item at the top of the playback queue.
+38. **Internal Fix:** Case-Insensitive Author/Series Scanner - Fixes a server crash (UniqueConstraintError) during library rescans when folder metadata differs in capitalization from the database.
 
 ## Custom Features Developed
 
@@ -50,11 +64,11 @@ This file documents the custom modifications made to the local audiobookshelf re
 
 ### 4. Custom Version & Changelog
 *   **Modified Files:** `package.json`, `client/package.json`
-*   **Description:** Updated version to `2.32.1a`.
+*   **Description:** Updated version to `2.32.1d`.
 *   **Modified File:** `client/plugins/version.js`
-*   **Description:** Intercepted the GitHub release check in `checkForUpdate`. Injected a custom alpha release object for `v2.32.1a` containing detailed markdown release notes, ensuring the UI changelog modal renders correctly instead of blank.
+*   **Description:** Intercepted the GitHub release check in `checkForUpdate`. Injected a custom alpha release object for `v2.32.1d` containing detailed markdown release notes, ensuring the UI changelog modal renders correctly instead of blank.
 
 ## Build and Deployment Details
 *   **Docker Image:** The image is built specifically for `linux/amd64` using `docker buildx` to ensure compatibility with the remote VM.
-*   **Image Name:** `audiobookshelf:alpha`
+*   **Image Name:** `audiobookshelf:v2.32.1d`
 *   **Deployment:** Pushed directly to `app@10.0.1.123`.

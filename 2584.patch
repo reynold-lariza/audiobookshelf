@@ -1,0 +1,391 @@
+From f6de6a93ab8bad9325a7086b6b2d80b460b00f17 Mon Sep 17 00:00:00 2001
+From: MxMarx <ruby.e.marx@gmail.com>
+Date: Mon, 5 Feb 2024 11:36:03 -0800
+Subject: [PATCH 1/2] Added location slider and bookmarks to Epub reader
+
+keep book and audiobook trackbars from overlapping
+---
+ client/components/player/PlayerTrackBar.vue |  5 +-
+ client/components/player/PlayerUi.vue       | 58 +++++++-----
+ client/components/readers/EpubReader.vue    | 97 ++++++++++++++-------
+ client/components/readers/Reader.vue        |  2 +-
+ 4 files changed, 105 insertions(+), 57 deletions(-)
+
+diff --git a/client/components/player/PlayerTrackBar.vue b/client/components/player/PlayerTrackBar.vue
+index 2f8327853..c62050509 100644
+--- a/client/components/player/PlayerTrackBar.vue
++++ b/client/components/player/PlayerTrackBar.vue
+@@ -39,7 +39,8 @@ export default {
+       type: Object,
+       default: () => {}
+     },
+-    playbackRate: Number
++    playbackRate: Number,
++    usePercent: Boolean
+   },
+   data() {
+     return {
+@@ -172,7 +173,7 @@ export default {
+         this.$refs.hoverTimestampArrow.style.left = posLeft + 'px'
+       }
+       if (this.$refs.hoverTimestampText) {
+-        var hoverText = this.$secondsToTimestamp(progressTime / this._playbackRate)
++        var hoverText = this.usePercent ? ((progressTime / duration) * 100).toFixed(1) + '%' : this.$secondsToTimestamp(progressTime / this._playbackRate)
+ 
+         var chapter = this.chapters.find((chapter) => chapter.start <= totalTime && totalTime < chapter.end)
+         if (chapter && chapter.title) {
+diff --git a/client/components/player/PlayerUi.vue b/client/components/player/PlayerUi.vue
+index e1b0f96da..76f7f6b05 100644
+--- a/client/components/player/PlayerUi.vue
++++ b/client/components/player/PlayerUi.vue
+@@ -1,14 +1,14 @@
+ <template>
+   <div class="w-full -mt-6">
+     <div class="w-full relative mb-1">
+-      <div class="absolute -top-10 md:top-0 right-0 lg:right-2 flex items-center h-full">
++      <div class="absolute right-0 lg:right-2 flex items-center h-full" :class="isBook ? '-top-4' : '-top-10 md:top-0'">
+         <!-- <span class="material-icons text-2xl cursor-pointer" @click="toggleFullscreen(true)">expand_less</span> -->
+ 
+-        <ui-tooltip direction="top" :text="$strings.LabelVolume">
++        <ui-tooltip v-if="!isBook" direction="top" :text="$strings.LabelVolume">
+           <controls-volume-control ref="volumeControl" v-model="volume" @input="setVolume" class="mx-2 hidden md:block" />
+         </ui-tooltip>
+ 
+-        <ui-tooltip direction="top" :text="$strings.LabelSleepTimer">
++        <ui-tooltip v-if="!isBook" direction="top" :text="$strings.LabelSleepTimer">
+           <div class="cursor-pointer text-gray-300 hover:text-white mx-1 lg:mx-2" @mousedown.prevent @mouseup.prevent @click.stop="$emit('showSleepTimer')">
+             <span v-if="!sleepTimerSet" class="material-icons text-2xl">snooze</span>
+             <div v-else class="flex items-center">
+@@ -18,13 +18,13 @@
+           </div>
+         </ui-tooltip>
+ 
+-        <ui-tooltip v-if="!isPodcast" direction="top" :text="$strings.LabelViewBookmarks">
++        <ui-tooltip v-if="!isPodcast && !isBook" direction="top" :text="$strings.LabelViewBookmarks">
+           <div class="cursor-pointer text-gray-300 hover:text-white mx-1 lg:mx-2" @mousedown.prevent @mouseup.prevent @click.stop="$emit('showBookmarks')">
+             <span class="material-icons text-2xl">{{ bookmarks.length ? 'bookmarks' : 'bookmark_border' }}</span>
+           </div>
+         </ui-tooltip>
+ 
+-        <ui-tooltip v-if="chapters.length" direction="top" :text="$strings.LabelViewChapters">
++        <ui-tooltip v-if="chapters.length && !isBook" direction="top" :text="$strings.LabelViewChapters">
+           <div class="cursor-pointer text-gray-300 hover:text-white mx-1 lg:mx-2" @mousedown.prevent @mouseup.prevent @click.stop="showChapters">
+             <span class="material-icons text-2xl">format_list_bulleted</span>
+           </div>
+@@ -42,21 +42,32 @@
+           </div>
+         </ui-tooltip>
+       </div>
+-
+-      <player-playback-controls :loading="loading" :seek-loading="seekLoading" :playback-rate.sync="playbackRate" :paused="paused" :has-next-chapter="hasNextChapter" @prevChapter="prevChapter" @nextChapter="nextChapter" @jumpForward="jumpForward" @jumpBackward="jumpBackward" @setPlaybackRate="setPlaybackRate" @playPause="playPause" />
++      <player-playback-controls v-if="!isBook" :loading="loading" :seek-loading="seekLoading" :playback-rate.sync="playbackRate" :paused="paused" :has-next-chapter="hasNextChapter" @prevChapter="prevChapter" @nextChapter="nextChapter" @jumpForward="jumpForward" @jumpBackward="jumpBackward" @setPlaybackRate="setPlaybackRate" @playPause="playPause" />
+     </div>
+ 
+-    <player-track-bar ref="trackbar" :loading="loading" :chapters="chapters" :duration="duration" :current-chapter="currentChapter" :playback-rate="playbackRate" @seek="seek" />
++    <player-track-bar ref="trackbar" :usePercent="isBook" :loading="loading" :chapters="chapters" :duration="duration" :current-chapter="currentChapter" :playback-rate="playbackRate" @seek="seek" />
+ 
+     <div class="flex">
+-      <p ref="currentTimestamp" class="font-mono text-xxs sm:text-sm text-gray-100 pointer-events-auto">00:00:00</p>
+-      <p class="font-mono text-sm hidden sm:block text-gray-100 pointer-events-auto">&nbsp;/&nbsp;{{ progressPercent }}%</p>
+-      <div class="flex-grow" />
+-      <p class="text-xs sm:text-sm text-gray-300 pt-0.5">
+-        {{ currentChapterName }} <span v-if="useChapterTrack" class="text-xs text-gray-400">&nbsp;({{ currentChapterIndex + 1 }} of {{ chapters.length }})</span>
+-      </p>
+-      <div class="flex-grow" />
+-      <p class="font-mono text-xxs sm:text-sm text-gray-100 pointer-events-auto">{{ timeRemainingPretty }}</p>
++      <div class="min-w-40 flex font-mono text-gray-100 pointer-events-auto">
++        <p ref="currentTimestamp" class="text-xxs sm:text-sm">00:00:00</p>
++        <p class="text-sm hidden sm:block">&nbsp;/&nbsp;{{ progressPercent }}%</p>
++      </div>
++
++      <div class="flex-grow flex justify-center text-gray-300">
++        <div v-if="isBook" class="cursor-pointer" @mousedown.prevent @mouseup.prevent @click.stop="prevChapter">
++          <span class="material-icons text-2xl sm:text-3xl">first_page</span>
++        </div>
++
++        <p class="min-w-40 text-center text-xs sm:text-sm pt-0.5">
++          {{ currentChapterName }} <span v-if="useChapterTrack" class="text-xs text-gray-400">&nbsp;({{ currentChapterIndex + 1 }} of {{ chapters.length }})</span>
++        </p>
++
++        <div v-if="isBook" :class="hasNextChapter ? 'cursor-pointer' : 'text-gray-500'" @mousedown.prevent @mouseup.prevent @click.stop="nextChapter">
++          <span class="material-icons text-2xl sm:text-3xl">last_page</span>
++        </div>
++      </div>
++
++      <p class="min-w-40 text-right font-mono text-xxs sm:text-sm text-gray-100 pointer-events-auto">{{ timeRemainingPretty }}</p>
+     </div>
+ 
+     <modals-chapters-modal v-model="showChaptersModal" :current-chapter="currentChapter" :playback-rate="playbackRate" :chapters="chapters" @select="selectChapter" />
+@@ -78,7 +89,8 @@ export default {
+     },
+     sleepTimerSet: Boolean,
+     sleepTimerRemaining: Number,
+-    isPodcast: Boolean
++    isPodcast: Boolean,
++    isBook: Boolean
+   },
+   data() {
+     return {
+@@ -121,10 +133,8 @@ export default {
+       return (this.duration - this.currentTime) / this.playbackRate
+     },
+     timeRemainingPretty() {
+-      if (this.timeRemaining < 0) {
+-        return this.$secondsToTimestamp(this.timeRemaining * -1)
+-      }
+-      return '-' + this.$secondsToTimestamp(this.timeRemaining)
++      if (this.isBook) return -Math.ceil(Math.abs(this.timeRemaining))
++      return this.$secondsToTimestamp(-Math.abs(this.timeRemaining))
+     },
+     progressPercent() {
+       const duration = this.useChapterTrack ? this.currentChapterDuration : this.duration
+@@ -134,7 +144,7 @@ export default {
+       return Math.round((100 * time) / duration)
+     },
+     currentChapter() {
+-      return this.chapters.find((chapter) => chapter.start <= this.currentTime && this.currentTime < chapter.end)
++      return this.chapters.find((chapter) => chapter.start <= this.currentTime && (this.currentTime < chapter.end || this.currentTime == 1))
+     },
+     currentChapterName() {
+       return this.currentChapter ? this.currentChapter.title : ''
+@@ -296,7 +306,7 @@ export default {
+         return
+       }
+       const time = this.useChapterTrack ? Math.max(0, this.currentTime - this.currentChapterStart) : this.currentTime
+-      ts.innerText = this.$secondsToTimestamp(time / this.playbackRate)
++      ts.innerText = this.isBook ? 'Page ' + Math.round(time / this.playbackRate) : this.$secondsToTimestamp(time / this.playbackRate)
+     },
+     setBufferTime(bufferTime) {
+       if (this.$refs.trackbar) this.$refs.trackbar.setBufferTime(bufferTime)
+@@ -315,7 +325,7 @@ export default {
+       this.setPlaybackRate(this.playbackRate)
+     },
+     settingsUpdated(settings) {
+-      if (settings.playbackRate && this.playbackRate !== settings.playbackRate) {
++      if (!this.isBook && settings.playbackRate && this.playbackRate !== settings.playbackRate) {
+         this.setPlaybackRate(settings.playbackRate)
+       }
+     },
+diff --git a/client/components/readers/EpubReader.vue b/client/components/readers/EpubReader.vue
+index 3941c0d81..231027cde 100644
+--- a/client/components/readers/EpubReader.vue
++++ b/client/components/readers/EpubReader.vue
+@@ -1,16 +1,19 @@
+ <template>
+-  <div id="epub-reader" class="h-full w-full">
+-    <div class="h-full flex items-center justify-center">
++  <div id="epub-reader" class="h-full w-full flex flex-col">
++    <div class="flex flex-grow items-center justify-center">
+       <button type="button" aria-label="Previous page" class="w-24 max-w-24 h-full hidden sm:flex items-center overflow-x-hidden justify-center opacity-50 hover:opacity-100">
+         <span v-if="hasPrev" class="material-icons text-6xl" @mousedown.prevent @click="prev">chevron_left</span>
+       </button>
+-      <div id="frame" class="w-full" style="height: 80%">
++      <div id="frame" class="w-full shrink">
+         <div id="viewer"></div>
+       </div>
+       <button type="button" aria-label="Next page" class="w-24 max-w-24 h-full hidden sm:flex items-center justify-center overflow-x-hidden opacity-50 hover:opacity-100">
+         <span v-if="hasNext" class="material-icons text-6xl" @mousedown.prevent @click="next">chevron_right</span>
+       </button>
+     </div>
++    <div class="group-data-[theme=light]:invert z-50 px-2 md:px-4 pb-1 md:pb-4 pt-2" :class="themeRules">
++      <player-ui ref="audioPlayer" :chapters="flattenedChapters" isBook @seek="seek" />
++    </div>
+   </div>
+ </template>
+ 
+@@ -41,6 +44,7 @@ export default {
+       /** @type {ePub.Rendition} */
+       rendition: null,
+       chapters: [],
++      flattenedChapters: [],
+       ereaderSettings: {
+         theme: 'dark',
+         font: 'serif',
+@@ -139,6 +143,11 @@ export default {
+       if (!this.rendition?.manager) return
+       return this.rendition?.next()
+     },
++    seek(location) {
++      if (!this.rendition?.manager) return
++      console.log(this.book.locations.cfiFromLocation(Math.round(location)))
++      return this.rendition?.display(this.book.locations.cfiFromPercentage(location))
++    },
+     goToChapter(href) {
+       if (!this.rendition?.manager) return
+       return this.rendition?.display(href)
+@@ -288,6 +297,7 @@ export default {
+       }
+ 
+       if (location.end.percentage) {
++        this.$refs.audioPlayer.setCurrentTime(location.end.percentage)
+         this.updateProgress({
+           ebookLocation: location.start.cfi,
+           ebookProgress: location.end.percentage
+@@ -298,7 +308,28 @@ export default {
+         })
+       }
+     },
+-    initEpub() {
++    estimatePages() {
++      // This uses the existing audio player ui by changes the 'playback rate' to scale percentage to pages.
++
++      // Estimating page count isn't straightforward for Epubs.
++      // https://github.com/futurepress/epub.js/issues/744
++      // https://github.com/johnfactotum/foliate/issues/175
++
++      // Method 1: count pages in the current chapter and extrapolate the total number of pages from that.
++      // Downsides: total page count changes when chapters change, only accurate for long chapters.
++      // let currentLocation = this.rendition.currentLocation()
++      // let sectionIndex = currentLocation.start.index
++      // let sectionPages = currentLocation.start.displayed.total
++      // let sectionBaseCFI = this.book.spine.get(sectionIndex).cfiBase
++      // let sectionLocations = this.book.locations._locations.filter((item) => item.startsWith('epubcfi(' + sectionBaseCFI)).length
++      // let totalLocations = this.book.locations.total
++      // let estPages = (totalLocations * sectionPages) / sectionLocations
++      // this.$refs.audioPlayer.playbackRate = 1 / estPages
++
++      //  Method 2: use a location size of 1024 characters to approximates pages. Isn't actually a page, more but stable.
++      this.$refs.audioPlayer.playbackRate = 1 / this.book.locations.total
++    },
++    async initEpub() {
+       /** @type {EpubReader} */
+       const reader = this
+ 
+@@ -330,29 +361,33 @@ export default {
+         this.applyTheme()
+       })
+ 
+-      reader.book.ready.then(() => {
+-        // set up event listeners
+-        reader.rendition.on('relocated', reader.relocated)
+-        reader.rendition.on('keydown', reader.keyUp)
++      await reader.book.ready
++      // set up event listeners
++      reader.rendition.on('relocated', reader.relocated)
++      reader.rendition.on('keydown', reader.keyUp)
++      // reader.rendition.on('rendered', this.estimatePages)
++      reader.rendition.on('touchstart', (event) => {
++        this.$emit('touchstart', event)
++      })
++      reader.rendition.on('touchend', (event) => {
++        this.$emit('touchend', event)
++      })
+ 
+-        reader.rendition.on('touchstart', (event) => {
+-          this.$emit('touchstart', event)
+-        })
+-        reader.rendition.on('touchend', (event) => {
+-          this.$emit('touchend', event)
+-        })
++      // load ebook cfi locations
++      const savedLocations = this.loadLocations()
++      if (savedLocations) {
++        reader.book.locations.load(savedLocations)
++      } else {
++        await reader.book.locations.generate(1024)
++        this.checkSaveLocations(reader.book.locations.save())
++      }
+ 
+-        // load ebook cfi locations
+-        const savedLocations = this.loadLocations()
+-        if (savedLocations) {
+-          reader.book.locations.load(savedLocations)
+-        } else {
+-          reader.book.locations.generate().then(() => {
+-            this.checkSaveLocations(reader.book.locations.save())
+-          })
+-        }
+-        this.getChapters()
+-      })
++      await this.getChapters()
++      this.$refs.audioPlayer.setDuration(this.book.locations.total)
++      this.$refs.audioPlayer.setDuration(1)
++
++      this.estimatePages()
++      this.$refs.audioPlayer.setCurrentTime(this.book.locations.percentageFromCfi(this.savedEbookLocation || reader.book.locations.start))
+     },
+     getChapters() {
+       // Load the list of chapters in the book. See https://github.com/futurepress/epub.js/issues/759
+@@ -400,16 +435,17 @@ export default {
+       }
+       return createTree(toc, tocTree).then(() => {
+         this.chapters = tocTree
++        this.flattenChapters()
+       })
+     },
+-    flattenChapters(chapters) {
++    flattenChapters() {
+       // Convert the nested epub chapters into something that looks like audiobook chapters for player-ui
+       const unwrap = (chapters) => {
+         return chapters.reduce((acc, chapter) => {
+           return chapter.subitems ? [...acc, chapter, ...unwrap(chapter.subitems)] : [...acc, chapter]
+         }, [])
+       }
+-      let flattenedChapters = unwrap(chapters)
++      let flattenedChapters = unwrap(this.chapters)
+ 
+       flattenedChapters = flattenedChapters.sort((a, b) => a.start - b.start)
+       for (let i = 0; i < flattenedChapters.length; i++) {
+@@ -417,10 +453,11 @@ export default {
+         if (i < flattenedChapters.length - 1) {
+           flattenedChapters[i].end = flattenedChapters[i + 1].start
+         } else {
++          // flattenedChapters[i].end = this.book.locations.total
+           flattenedChapters[i].end = 1
+         }
+       }
+-      return flattenedChapters
++      this.flattenedChapters = flattenedChapters
+     },
+     resize() {
+       this.windowWidth = window.innerWidth
+@@ -434,11 +471,11 @@ export default {
+       })
+     }
+   },
+-  mounted() {
++  async mounted() {
+     this.windowWidth = window.innerWidth
+     this.windowHeight = window.innerHeight
+     window.addEventListener('resize', this.resize)
+-    this.initEpub()
++    await this.initEpub()
+   },
+   beforeDestroy() {
+     window.removeEventListener('resize', this.resize)
+diff --git a/client/components/readers/Reader.vue b/client/components/readers/Reader.vue
+index 5ee85182b..e2171ebe3 100644
+--- a/client/components/readers/Reader.vue
++++ b/client/components/readers/Reader.vue
+@@ -27,7 +27,7 @@
+ 
+     <!-- TOC side nav -->
+     <div v-if="tocOpen" class="w-full h-full overflow-y-scroll absolute inset-0 bg-black/20 z-20" @click.stop.prevent="toggleToC"></div>
+-    <div v-if="isEpub" class="w-96 h-full max-h-full absolute top-0 left-0 shadow-xl transition-transform z-30 group-data-[theme=dark]:bg-primary group-data-[theme=dark]:text-white group-data-[theme=light]:bg-white group-data-[theme=light]:text-black" :class="tocOpen ? 'translate-x-0' : '-translate-x-96'" @click.stop.prevent>
++    <div v-if="isEpub" class="w-96 h-full max-h-full absolute top-0 left-0 shadow-xl transition-transform z-50 group-data-[theme=dark]:bg-primary group-data-[theme=dark]:text-white group-data-[theme=light]:bg-white group-data-[theme=light]:text-black" :class="tocOpen ? 'translate-x-0' : '-translate-x-96'" @click.stop.prevent>
+       <div class="flex flex-col p-4 h-full">
+         <div class="flex items-center mb-2">
+           <button @click.stop.prevent="toggleToC" type="button" aria-label="Close table of contents" class="inline-flex opacity-80 hover:opacity-100">
+
+From 0b9668dc767257725bc8d5142a3772323789437c Mon Sep 17 00:00:00 2001
+From: MxMarx <ruby.e.marx@gmail.com>
+Date: Thu, 8 Feb 2024 16:35:06 -0800
+Subject: [PATCH 2/2] don't show player queue for ebooks
+
+---
+ client/components/player/PlayerUi.vue | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/client/components/player/PlayerUi.vue b/client/components/player/PlayerUi.vue
+index 76f7f6b05..4c255a4c8 100644
+--- a/client/components/player/PlayerUi.vue
++++ b/client/components/player/PlayerUi.vue
+@@ -30,7 +30,7 @@
+           </div>
+         </ui-tooltip>
+ 
+-        <ui-tooltip v-if="playerQueueItems.length" direction="top" :text="$strings.LabelViewQueue">
++        <ui-tooltip v-if="playerQueueItems.length && !isBook" direction="top" :text="$strings.LabelViewQueue">
+           <button class="outline-none text-gray-300 mx-1 lg:mx-2 hover:text-white" @mousedown.prevent @mouseup.prevent @click.stop="$emit('showPlayerQueueItems')">
+             <span class="material-icons text-2.5xl sm:text-3xl">playlist_play</span>
+           </button>

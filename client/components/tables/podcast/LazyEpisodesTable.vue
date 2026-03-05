@@ -335,6 +335,19 @@ export default {
       }
       this.$store.commit('addItemToQueue', queueItem)
     },
+    playEpisodeNext(episode) {
+      const queueItem = {
+        libraryItemId: this.libraryItem.id,
+        libraryId: this.libraryItem.libraryId,
+        episodeId: episode.id,
+        title: episode.title,
+        subtitle: this.mediaMetadata.title,
+        caption: episode.publishedAt ? this.$getString('LabelPublishedDate', [this.$formatDate(episode.publishedAt, this.dateFormat)]) : this.$strings.LabelUnknownPublishDate,
+        duration: episode.audioFile.duration || null,
+        coverPath: this.media.coverPath || null
+      }
+      this.$store.commit('addItemToTopOfQueue', queueItem)
+    },
     toggleBatchFinished() {
       this.batchUpdateEpisodesFinished(this.selectedEpisodes, !this.selectedIsFinished)
     },
@@ -488,6 +501,9 @@ export default {
             })
             this.$on('addToQueue', (payload) => {
               _this.addEpisodeToQueue(payload)
+            })
+            this.$on('playNext', (payload) => {
+              _this.playEpisodeNext(payload)
             })
             this.$on('remove', (payload) => {
               _this.removeEpisode(payload)

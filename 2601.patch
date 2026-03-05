@@ -1,0 +1,662 @@
+From 5682d2c7e8816f4186d420a48bbc0fbb083f0c71 Mon Sep 17 00:00:00 2001
+From: MxMarx <ruby.e.marx@gmail.com>
+Date: Sat, 10 Feb 2024 16:10:19 -0800
+Subject: [PATCH] Add highlight annotations to ebooks
+
+---
+ client/components/readers/EpubReader.vue | 151 +++++++++++++++++++++--
+ client/components/readers/Reader.vue     |  86 ++++---------
+ client/components/readers/Sidebar.vue    |  96 ++++++++++++++
+ client/store/user.js                     |   5 +-
+ server/controllers/MeController.js       |  28 +++--
+ server/objects/user/AudioBookmark.js     |   6 +-
+ server/objects/user/User.js              |  18 +--
+ 7 files changed, 298 insertions(+), 92 deletions(-)
+ create mode 100644 client/components/readers/Sidebar.vue
+
+diff --git a/client/components/readers/EpubReader.vue b/client/components/readers/EpubReader.vue
+index 3941c0d81..f2ddeee71 100644
+--- a/client/components/readers/EpubReader.vue
++++ b/client/components/readers/EpubReader.vue
+@@ -4,7 +4,18 @@
+       <button type="button" aria-label="Previous page" class="w-24 max-w-24 h-full hidden sm:flex items-center overflow-x-hidden justify-center opacity-50 hover:opacity-100">
+         <span v-if="hasPrev" class="material-icons text-6xl" @mousedown.prevent @click="prev">chevron_left</span>
+       </button>
+-      <div id="frame" class="w-full" style="height: 80%">
++      <div id="frame" class="w-full shrink">
++        <div id="viewer" ref="viewer"></div>
++
++        <div v-if="showAnnotator" class="rounded bg-bg absolute" :style="{ top: annotatorPosition.top + 'px', left: annotatorPosition.left + 'px' }">
++          <button v-if="isTextSelected" class="opacity-80 hover:opacity-100" @mousedown.prevent @mouseup.prevent @click="addAnotationClicked">
++            <span class="material-icons text-4xl"> bookmark_add </span>
++          </button>
++          <button v-else class="opacity-80 hover:opacity-100" @mousedown.prevent @mouseup.prevent @click.stop="removeAnnotation">
++            <span class="material-icons text-4xl"> bookmark_remove </span>
++          </button>
++        </div>
++
+         <div id="viewer"></div>
+       </div>
+       <button type="button" aria-label="Next page" class="w-24 max-w-24 h-full hidden sm:flex items-center justify-center overflow-x-hidden opacity-50 hover:opacity-100">
+@@ -22,6 +33,23 @@ import ePub from 'epubjs'
+  * @property {ePub.Book} book
+  * @property {ePub.Rendition} rendition
+  */
++/**
++ * @typedef {object} Chapter
++ * @property {string} title
++ * @property {string} cfi
++ * @property {number} start - percentage
++ * @property {number} end - percentage
++ * @property {string} href
++ * @property {number} id
++ * @property {Annotation[]} searchResults
++ * @property {Chapter[]} subitems - nested chapters
++ */
++/**
++ * @typedef {object} Annotation
++ * @property {string} cfi
++ * @property {number} start - percentage
++ * @property {string} excerpt - highlighted text
++ */
+ export default {
+   props: {
+     libraryItem: {
+@@ -34,13 +62,22 @@ export default {
+   },
+   data() {
+     return {
++      annotatorPosition: { top: 0, left: 0 },
++      isTextSelected: false,
++      showAnnotator: false,
++      mousePosition: { x: 0, y: 0 },
+       windowWidth: 0,
+       windowHeight: 0,
+       /** @type {ePub.Book} */
+       book: null,
+       /** @type {ePub.Rendition} */
+       rendition: null,
++      /** @type {Chapter[]} */
+       chapters: [],
++      /** @type {Annotation[]} */
++      bookmarks: [],
++      selectedCFI: '',
++      flattenedChapters: [],
+       ereaderSettings: {
+         theme: 'dark',
+         font: 'serif',
+@@ -157,26 +194,105 @@ export default {
+       }
+       return foundChapter
+     },
+-    /** @returns {Array} Returns an array of chapters that only includes chapters with query results */
+-    async searchBook(query) {
+-      const chapters = structuredClone(await this.chapters)
+-      const searchResults = await Promise.all(this.book.spine.spineItems.map((item) => item.load(this.book.load.bind(this.book)).then(item.find.bind(item, query)).finally(item.unload.bind(item))))
+-      const mergedResults = [].concat(...searchResults)
+-
+-      mergedResults.forEach((chapter) => {
++    addResultsToChapters(chapters, results) {
++      results.forEach((chapter) => {
+         chapter.start = this.book.locations.percentageFromCfi(chapter.cfi)
+         const foundChapter = this.findChapterFromPosition(chapters, chapter.start)
+         if (foundChapter) foundChapter.searchResults.push(chapter)
+       })
+ 
+-      let filteredResults = chapters.filter(function f(o) {
++      return chapters.filter(function f(o) {
+         if (o.searchResults.length) return true
+         if (o.subitems.length) {
+           return (o.subitems = o.subitems.filter(f)).length
+         }
+       })
++    },
++    async searchBook(query) {
++      const chapters = structuredClone(await this.chapters)
++      const searchResults = await Promise.all(this.book.spine.spineItems.map((item) => item.load(this.book.load.bind(this.book)).then(item.find.bind(item, query)).finally(item.unload.bind(item))))
++      const mergedResults = [].concat(...searchResults)
++
++      const filteredResults = this.addResultsToChapters(chapters, mergedResults)
++      return filteredResults
++    },
++    getBookmarks() {
++      const chapters = structuredClone(this.chapters)
++      const mergedResults = structuredClone(this.bookmarks)
++      let filteredResults = this.addResultsToChapters(chapters, mergedResults)
+       return filteredResults
+     },
++    captureMousePosition(evt, contents) {
++      const viewElementRect = contents.document.defaultView.frameElement.getBoundingClientRect()
++      this.annotatorPosition = { top: evt.clientY + viewElementRect.top + 20, left: evt.clientX + viewElementRect.left - 10 }
++    },
++    onTextSelected(cfiRange, contents) {
++      this.isTextSelected = true
++      this.showAnnotator = true
++      this.selectedCFI = cfiRange
++    },
++    onAnnotationClicked(cfiRange) {
++      this.isTextSelected = false
++      this.showAnnotator = true
++
++      this.selectedCFI = cfiRange
++    },
++    removeAnnotation() {
++      this.rendition.annotations.remove(this.selectedCFI, 'highlight')
++      this.bookmarks = this.bookmarks.filter((item) => item.cfi !== this.selectedCFI)
++      this.showAnnotator = false
++
++      var bookmark = {
++        title: this.rendition.getRange(this.selectedCFI).toString(),
++        time: this.selectedCFI
++      }
++      this.$axios
++        .$delete(`/api/me/item/${this.libraryItemId}/bookmark/${encodeURIComponent(bookmark.time)}?type=epub`)
++        .then(() => {
++          this.$toast.success(this.$strings.ToastBookmarkRemoveSuccess)
++        })
++        .catch((error) => {
++          this.$toast.error(this.$strings.ToastBookmarkRemoveFailed)
++          console.error(error)
++        })
++    },
++    addAnotationClicked() {
++      var bookmark = {
++        title: this.rendition.getRange(this.selectedCFI).toString(),
++        time: this.selectedCFI,
++        type: 'epub'
++      }
++      this.submitCreateBookmark(bookmark)
++      this.addAnotation(bookmark)
++
++      // Deselect text
++      this.rendition.getContents().forEach((contents) => contents.window.getSelection().removeAllRanges())
++      this.showAnnotator = false
++      this.isTextSelected = false
++    },
++    addAnotation(bookmark) {
++      this.bookmarks.push({
++        excerpt: bookmark.title,
++        cfi: bookmark.time,
++        start: this.book.locations.percentageFromCfi(bookmark.time)
++      })
++      this.rendition.annotations.add('highlight', bookmark.time, {}, null, 'hl', {
++        fill: 'red',
++        'fill-opacity': '0.5',
++        'mix-blend-mode': 'multiply'
++      })
++    },
++    submitCreateBookmark(bookmark) {
++      this.$axios
++        .$post(`/api/me/item/${this.libraryItemId}/bookmark`, bookmark)
++        .then(() => {
++          this.$toast.success(this.$strings.ToastBookmarkCreateSuccess)
++        })
++        .catch((error) => {
++          this.$toast.error(this.$strings.ToastBookmarkCreateFailed)
++          console.error(error)
++        })
++    },
+     keyUp(e) {
+       const rtl = this.book.package.metadata.direction === 'rtl'
+       if ((e.keyCode || e.which) == 37) {
+@@ -283,6 +399,7 @@ export default {
+     },
+     /** @param {string} location - CFI of the new location */
+     relocated(location) {
++      this.showAnnotator = false
+       if (this.savedEbookLocation === location.start.cfi) {
+         return
+       }
+@@ -342,6 +459,15 @@ export default {
+           this.$emit('touchend', event)
+         })
+ 
++        // Show popup to annotate selected text
++        reader.rendition.on('selected', this.onTextSelected)
++        reader.rendition.on('mouseup', this.captureMousePosition)
++        reader.rendition.on('mousedown', () => {
++          this.showAnnotator = false
++        })
++        // Show popup to remove an annotation
++        reader.rendition.on('markClicked', this.onAnnotationClicked)
++
+         // load ebook cfi locations
+         const savedLocations = this.loadLocations()
+         if (savedLocations) {
+@@ -353,6 +479,11 @@ export default {
+         }
+         this.getChapters()
+       })
++
++      const bookmarks = this.$store.getters['user/getUserBookmarksForItem'](this.libraryItemId, 'epub')
++      bookmarks.forEach((bookmark) => {
++        this.addAnotation(bookmark)
++      })
+     },
+     getChapters() {
+       // Load the list of chapters in the book. See https://github.com/futurepress/epub.js/issues/759
+@@ -400,6 +531,8 @@ export default {
+       }
+       return createTree(toc, tocTree).then(() => {
+         this.chapters = tocTree
++        this.$emit('chaptersLoaded', this.chapters)
++        this.flattenChapters()
+       })
+     },
+     flattenChapters(chapters) {
+diff --git a/client/components/readers/Reader.vue b/client/components/readers/Reader.vue
+index 5ee85182b..b78d99afb 100644
+--- a/client/components/readers/Reader.vue
++++ b/client/components/readers/Reader.vue
+@@ -1,10 +1,13 @@
+ <template>
+   <div v-if="show" id="reader" :data-theme="ereaderTheme" class="group absolute top-0 left-0 w-full z-60 data-[theme=dark]:bg-primary data-[theme=dark]:text-white data-[theme=light]:bg-white data-[theme=light]:text-black" :class="{ 'reader-player-open': !!streamLibraryItem }">
+-    <div class="absolute top-4 left-4 z-20 flex items-center">
+-      <button v-if="isEpub" @click="toggleToC" type="button" aria-label="Table of contents menu" class="inline-flex opacity-80 hover:opacity-100">
++    <div class="absolute top-4 left-4 z-20 inline-flex gap-4 items-center">
++      <button v-if="isEpub" @click="openToC" type="button" aria-label="Table of contents menu" class="opacity-80 hover:opacity-100">
+         <span class="material-icons text-2xl">menu</span>
+       </button>
+-      <button v-if="hasSettings" @click="openSettings" type="button" aria-label="Ereader settings" class="mx-4 inline-flex opacity-80 hover:opacity-100">
++      <button v-if="isEpub" @click="openBookmarks" type="button" aria-label="Bookmarks" class="opacity-80 hover:opacity-100">
++        <span class="material-icons text-2xl">bookmarks</span>
++      </button>
++      <button v-if="hasSettings" @click="openSettings" type="button" aria-label="Ereader settings" class="opacity-80 hover:opacity-100">
+         <span class="material-icons text-1.5xl">settings</span>
+       </button>
+     </div>
+@@ -23,48 +26,9 @@
+       </button>
+     </div>
+ 
+-    <component v-if="componentName" ref="readerComponent" :is="componentName" :library-item="selectedLibraryItem" :player-open="!!streamLibraryItem" :keep-progress="keepProgress" :file-id="ebookFileId" @touchstart="touchstart" @touchend="touchend" @hook:mounted="readerMounted" />
+-
+-    <!-- TOC side nav -->
+-    <div v-if="tocOpen" class="w-full h-full overflow-y-scroll absolute inset-0 bg-black/20 z-20" @click.stop.prevent="toggleToC"></div>
+-    <div v-if="isEpub" class="w-96 h-full max-h-full absolute top-0 left-0 shadow-xl transition-transform z-30 group-data-[theme=dark]:bg-primary group-data-[theme=dark]:text-white group-data-[theme=light]:bg-white group-data-[theme=light]:text-black" :class="tocOpen ? 'translate-x-0' : '-translate-x-96'" @click.stop.prevent>
+-      <div class="flex flex-col p-4 h-full">
+-        <div class="flex items-center mb-2">
+-          <button @click.stop.prevent="toggleToC" type="button" aria-label="Close table of contents" class="inline-flex opacity-80 hover:opacity-100">
+-            <span class="material-icons text-2xl">arrow_back</span>
+-          </button>
+-
+-          <p class="text-lg font-semibold ml-2">{{ $strings.HeaderTableOfContents }}</p>
+-        </div>
+-        <form @submit.prevent="searchBook" @click.stop.prevent>
+-          <ui-text-input clearable ref="input" @clear="searchBook" v-model="searchQuery" :placeholder="$strings.PlaceholderSearch" class="h-8 w-full text-sm flex mb-2" />
+-        </form>
+-
+-        <div class="overflow-y-auto">
+-          <div v-if="isSearching && !this.searchResults.length" class="w-full h-40 justify-center">
+-            <p class="text-center text-xl py-4">{{ $strings.MessageNoResults }}</p>
+-          </div>
+-
+-          <ul>
+-            <li v-for="chapter in isSearching ? this.searchResults : chapters" :key="chapter.id" class="py-1">
+-              <a :href="chapter.href" class="opacity-80 hover:opacity-100" @click.prevent="goToChapter(chapter.href)">{{ chapter.title }}</a>
+-              <div v-for="searchResults in chapter.searchResults" :key="searchResults.cfi" class="text-sm py-1 pl-4">
+-                <a :href="searchResults.cfi" class="opacity-50 hover:opacity-100" @click.prevent="goToChapter(searchResults.cfi)">{{ searchResults.excerpt }}</a>
+-              </div>
++    <component v-if="componentName" ref="readerComponent" :is="componentName" :library-item="selectedLibraryItem" :player-open="!!streamLibraryItem" :keep-progress="keepProgress" :file-id="ebookFileId" @touchstart="touchstart" @touchend="touchend" @hook:mounted="readerMounted" @chaptersLoaded="chaptersLoaded" />
+ 
+-              <ul v-if="chapter.subitems.length">
+-                <li v-for="subchapter in chapter.subitems" :key="subchapter.id" class="py-1 pl-4">
+-                  <a :href="subchapter.href" class="opacity-80 hover:opacity-100" @click.prevent="goToChapter(subchapter.href)">{{ subchapter.title }}</a>
+-                  <div v-for="subChapterSearchResults in subchapter.searchResults" :key="subChapterSearchResults.cfi" class="text-sm py-1 pl-4">
+-                    <a :href="subChapterSearchResults.cfi" class="opacity-50 hover:opacity-100" @click.prevent="goToChapter(subChapterSearchResults.cfi)">{{ subChapterSearchResults.excerpt }}</a>
+-                  </div>
+-                </li>
+-              </ul>
+-            </li>
+-          </ul>
+-        </div>
+-      </div>
+-    </div>
++    <readers-sidebar v-if="isEpub" ref="sidebar" :chapters="chapters" :bookmarks="bookmarks" :bookmarksOpen="bookmarksOpen" :sidebarOpen="sidebarOpen" @toggle-sidebar="sidebarOpen = false" @goToChapter="goToChapter" />
+ 
+     <!-- ereader settings modal -->
+     <modals-modal v-model="showSettings" name="ereader-settings-modal" :width="500" :height="'unset'" :processing="false">
+@@ -119,11 +83,12 @@ export default {
+       touchendY: 0,
+       touchstartTime: 0,
+       touchIdentifier: null,
++      bookmarks: [],
+       chapters: [],
+       isSearching: false,
+-      searchResults: [],
+       searchQuery: '',
+-      tocOpen: false,
++      sidebarOpen: false,
++      bookmarksOpen: false,
+       showSettings: false,
+       ereaderSettings: {
+         theme: 'dark',
+@@ -273,7 +238,7 @@ export default {
+   },
+   methods: {
+     goToChapter(uri) {
+-      this.toggleToC()
++      this.sidebarOpen = false
+       this.$refs.readerComponent.goToChapter(uri)
+     },
+     readerMounted() {
+@@ -285,9 +250,17 @@ export default {
+       this.$refs.readerComponent?.updateSettings?.(this.ereaderSettings)
+       localStorage.setItem('ereaderSettings', JSON.stringify(this.ereaderSettings))
+     },
+-    toggleToC() {
+-      this.tocOpen = !this.tocOpen
+-      this.chapters = this.$refs.readerComponent.chapters
++    openToC() {
++      this.sidebarOpen = true
++      this.bookmarksOpen = false
++    },
++    chaptersLoaded(chapters) {
++      this.chapters = chapters
++    },
++    openBookmarks() {
++      this.sidebarOpen = true
++      this.bookmarksOpen = true
++      this.bookmarks = this.$refs.readerComponent.getBookmarks()
+     },
+     openSettings() {
+       this.showSettings = true
+@@ -303,15 +276,6 @@ export default {
+         this.close()
+       }
+     },
+-    async searchBook() {
+-      if (this.searchQuery.length > 1) {
+-        this.searchResults = await this.$refs.readerComponent.searchBook(this.searchQuery)
+-        this.isSearching = true
+-      } else {
+-        this.isSearching = false
+-        this.searchResults = []
+-      }
+-    },
+     next() {
+       if (this.$refs.readerComponent?.next) this.$refs.readerComponent.next()
+     },
+@@ -390,8 +354,8 @@ export default {
+     },
+     close() {
+       this.unregisterListeners()
+-      this.isSearching = false
+-      this.searchQuery = ''
++      this.$refs.sidebar.isSearching = false
++      this.$refs.sidebar.searchQuery = ''
+       this.show = false
+     }
+   },
+diff --git a/client/components/readers/Sidebar.vue b/client/components/readers/Sidebar.vue
+new file mode 100644
+index 000000000..9b31ea454
+--- /dev/null
++++ b/client/components/readers/Sidebar.vue
+@@ -0,0 +1,96 @@
++<template>
++  <div>
++    <div v-if="sidebarOpen" class="w-full h-full overflow-y-scroll absolute inset-0 bg-black/20 z-20" @click.stop.prevent="toggleSidebar"></div>
++    <div class="w-96 h-full max-h-full absolute top-0 left-0 shadow-xl transition-transform z-50 group-data-[theme=dark]:bg-primary group-data-[theme=dark]:text-white group-data-[theme=light]:bg-white group-data-[theme=light]:text-black" :class="sidebarOpen ? 'translate-x-0' : '-translate-x-96'" @click.stop.prevent>
++      <div class="flex flex-col p-4 h-full">
++        <div class="flex items-center mb-2">
++          <button @click.stop.prevent="toggleSidebar" type="button" aria-label="Close table of contents" class="inline-flex opacity-80 hover:opacity-100">
++            <span class="material-icons text-2xl">arrow_back</span>
++          </button>
++
++          <p class="text-lg font-semibold ml-2">{{ sidebarTitle }}</p>
++        </div>
++
++        <template v-if="!bookmarksOpen">
++          <form @submit.prevent="searchBook">
++            <ui-text-input clearable ref="input" @clear="searchBook" v-model="searchQuery" :placeholder="$strings.PlaceholderSearch" class="h-8 w-full text-sm flex mb-2" />
++          </form>
++        </template>
++        <div class="overflow-y-auto">
++          <div v-if="isSearching && !searchResults.length" class="w-full h-40 justify-center">
++            <p class="text-center text-xl py-4">{{ $strings.MessageNoResults }}</p>
++          </div>
++
++          <div v-if="bookmarksOpen && !bookmarks.length" class="w-full h-40 justify-center">
++            <p class="text-center text-xl py-4">{{ $strings.MessageNoBookmarks }}</p>
++          </div>
++          <div v-else-if="!chapters.length" class="w-full h-40 justify-center">
++            <p class="text-center text-xl py-4">{{ $strings.MessageNoChapters }}</p>
++          </div>
++
++          <ul>
++            <li v-for="chapter in contents" :key="chapter.id" class="py-1">
++              <a :href="chapter.href" class="opacity-80 hover:opacity-100" @click.prevent="goToChapter(chapter.href)">{{ chapter.title }}</a>
++              <div v-for="searchResults in chapter.searchResults" :key="searchResults.cfi" class="text-sm py-1 pl-4">
++                <a :href="searchResults.cfi" class="opacity-50 hover:opacity-100" @click.prevent="goToChapter(searchResults.cfi)">{{ searchResults.excerpt }}</a>
++              </div>
++
++              <ul v-if="chapter.subitems.length">
++                <li v-for="subchapter in chapter.subitems" :key="subchapter.id" class="py-1 pl-4">
++                  <a :href="subchapter.href" class="opacity-80 hover:opacity-100" @click.prevent="goToChapter(subchapter.href)">{{ subchapter.title }}</a>
++                  <div v-for="subChapterSearchResults in subchapter.searchResults" :key="subChapterSearchResults.cfi" class="text-sm py-1 pl-4">
++                    <a :href="subChapterSearchResults.cfi" class="opacity-50 hover:opacity-100" @click.prevent="goToChapter(subChapterSearchResults.cfi)">{{ subChapterSearchResults.excerpt }}</a>
++                  </div>
++                </li>
++              </ul>
++            </li>
++          </ul>
++        </div>
++      </div>
++    </div>
++  </div>
++</template>
++
++<script>
++export default {
++  data() {
++    return {
++      searchQuery: '',
++      isSearching: false,
++      searchResults: []
++    }
++  },
++  props: {
++    sidebarOpen: false,
++    bookmarksOpen: false,
++    chapters: [],
++    bookmarks: []
++  },
++  computed: {
++    sidebarTitle() {
++      return this.bookmarksOpen ? this.$strings.LabelYourBookmarks : this.$strings.HeaderTableOfContents
++    },
++    contents() {
++      return !this.bookmarksOpen ? (this.isSearching ? this.searchResults : this.chapters) : this.bookmarks
++    }
++  },
++
++  methods: {
++    toggleSidebar() {
++      this.$emit('toggle-sidebar')
++    },
++    goToChapter(target) {
++      this.$emit('goToChapter', target)
++    },
++    async searchBook() {
++      if (this.searchQuery.length > 1) {
++        this.searchResults = await this.$parent.$refs.readerComponent.searchBook(this.searchQuery)
++        this.isSearching = true
++      } else {
++        this.isSearching = false
++        this.searchResults = []
++      }
++    }
++  }
++}
++</script>
+\ No newline at end of file
+diff --git a/client/store/user.js b/client/store/user.js
+index 85babb09e..846b5cf81 100644
+--- a/client/store/user.js
++++ b/client/store/user.js
+@@ -28,9 +28,10 @@ export const getters = {
+       return li.libraryItemId == libraryItemId
+     })
+   },
+-  getUserBookmarksForItem: (state) => (libraryItemId) => {
++  getUserBookmarksForItem: (state) => (libraryItemId, bookmarkType) => {
+     if (!state.user.bookmarks) return []
+-    return state.user.bookmarks.filter(bm => bm.libraryItemId === libraryItemId)
++    bookmarkType = bookmarkType || 'audio'
++    return state.user.bookmarks.filter(bm => bm.libraryItemId === libraryItemId && bm.type === bookmarkType)
+   },
+   getUserSetting: (state) => (key) => {
+     return state.settings?.[key] || null
+diff --git a/server/controllers/MeController.js b/server/controllers/MeController.js
+index 8fa5c6bc3..926fb5d15 100644
+--- a/server/controllers/MeController.js
++++ b/server/controllers/MeController.js
+@@ -124,9 +124,10 @@ class MeController {
+   // POST: api/me/item/:id/bookmark
+   async createBookmark(req, res) {
+     if (!await Database.libraryItemModel.checkExistsById(req.params.id)) return res.sendStatus(404)
++    req.body.type = req.body.type || 'audio'
+ 
+-    const { time, title } = req.body
+-    const bookmark = req.user.createBookmark(req.params.id, time, title)
++    const { type, time, title } = req.body
++    const bookmark = req.user.createBookmark(req.params.id, type, time, title)
+     await Database.updateUser(req.user)
+     SocketAuthority.clientEmitter(req.user.id, 'user_updated', req.user.toJSONForBrowser())
+     res.json(bookmark)
+@@ -135,14 +136,15 @@ class MeController {
+   // PATCH: api/me/item/:id/bookmark
+   async updateBookmark(req, res) {
+     if (!await Database.libraryItemModel.checkExistsById(req.params.id)) return res.sendStatus(404)
++    req.body.type = req.body.type || 'audio'
+ 
+-    const { time, title } = req.body
+-    if (!req.user.findBookmark(req.params.id, time)) {
++    const { type, time, title } = req.body
++    if (!req.user.findBookmark(req.params.id, type, time)) {
+       Logger.error(`[MeController] updateBookmark not found`)
+       return res.sendStatus(404)
+     }
+ 
+-    const bookmark = req.user.updateBookmark(req.params.id, time, title)
++    const bookmark = req.user.updateBookmark(req.params.id, type, time, title)
+     if (!bookmark) return res.sendStatus(500)
+ 
+     await Database.updateUser(req.user)
+@@ -150,19 +152,25 @@ class MeController {
+     res.json(bookmark)
+   }
+ 
+-  // DELETE: api/me/item/:id/bookmark/:time
++  // DELETE: api/me/item/:id/bookmark
+   async removeBookmark(req, res) {
+     if (!await Database.libraryItemModel.checkExistsById(req.params.id)) return res.sendStatus(404)
++    req.query.type = req.query.type || 'audio'
+ 
+-    const time = Number(req.params.time)
+-    if (isNaN(time)) return res.sendStatus(500)
++    if (req.query.type == 'audio') {
++      var time = Number(req.params.time)
++      if (isNaN(time)) return res.sendStatus(500)
++    }
++    else {
++      var time = req.params.time
++    }
+ 
+-    if (!req.user.findBookmark(req.params.id, time)) {
++    if (!req.user.findBookmark(req.params.id, req.query.type, time)) {
+       Logger.error(`[MeController] removeBookmark not found`)
+       return res.sendStatus(404)
+     }
+ 
+-    req.user.removeBookmark(req.params.id, time)
++    req.user.removeBookmark(req.params.id, req.query.type, time)
+     await Database.updateUser(req.user)
+     SocketAuthority.clientEmitter(req.user.id, 'user_updated', req.user.toJSONForBrowser())
+     res.sendStatus(200)
+diff --git a/server/objects/user/AudioBookmark.js b/server/objects/user/AudioBookmark.js
+index 98599a8dc..f676cfaf0 100644
+--- a/server/objects/user/AudioBookmark.js
++++ b/server/objects/user/AudioBookmark.js
+@@ -1,6 +1,7 @@
+ class AudioBookmark {
+   constructor(bookmark) {
+     this.libraryItemId = null
++    this.type = null
+     this.title = null
+     this.time = null
+     this.createdAt = null
+@@ -13,6 +14,7 @@ class AudioBookmark {
+   toJSON() {
+     return {
+       libraryItemId: this.libraryItemId,
++      type: this.type || 'audio',
+       title: this.title || '',
+       time: this.time,
+       createdAt: this.createdAt
+@@ -21,13 +23,15 @@ class AudioBookmark {
+ 
+   construct(bookmark) {
+     this.libraryItemId = bookmark.libraryItemId
++    this.type = bookmark.type || 'audio'
+     this.title = bookmark.title || ''
+     this.time = bookmark.time || 0
+     this.createdAt = bookmark.createdAt
+   }
+ 
+-  setData(libraryItemId, time, title) {
++  setData(libraryItemId, type, time, title) {
+     this.libraryItemId = libraryItemId
++    this.type = type
+     this.title = title
+     this.time = time
+     this.createdAt = Date.now()
+diff --git a/server/objects/user/User.js b/server/objects/user/User.js
+index b503872d6..32a1b1fa8 100644
+--- a/server/objects/user/User.js
++++ b/server/objects/user/User.js
+@@ -350,25 +350,25 @@ class User {
+     return this.checkCanAccessLibraryItemWithTags(tags)
+   }
+ 
+-  findBookmark(libraryItemId, time) {
+-    return this.bookmarks.find(bm => bm.libraryItemId === libraryItemId && bm.time == time)
++  findBookmark(libraryItemId, type, time) {
++    return this.bookmarks.find(bm => bm.libraryItemId === libraryItemId && bm.time == time && bm.type === type)
+   }
+ 
+-  createBookmark(libraryItemId, time, title) {
+-    var existingBookmark = this.findBookmark(libraryItemId, time)
++  createBookmark(libraryItemId, type, time, title) {
++    var existingBookmark = this.findBookmark(libraryItemId, type, time)
+     if (existingBookmark) {
+       Logger.warn('[User] Create Bookmark already exists for this time')
+       existingBookmark.title = title
+       return existingBookmark
+     }
+     var newBookmark = new AudioBookmark()
+-    newBookmark.setData(libraryItemId, time, title)
++    newBookmark.setData(libraryItemId, type, time, title)
+     this.bookmarks.push(newBookmark)
+     return newBookmark
+   }
+ 
+-  updateBookmark(libraryItemId, time, title) {
+-    var bookmark = this.findBookmark(libraryItemId, time)
++  updateBookmark(libraryItemId, type, time, title) {
++    var bookmark = this.findBookmark(libraryItemId, type, time)
+     if (!bookmark) {
+       Logger.error(`[User] updateBookmark not found`)
+       return null
+@@ -377,8 +377,8 @@ class User {
+     return bookmark
+   }
+ 
+-  removeBookmark(libraryItemId, time) {
+-    this.bookmarks = this.bookmarks.filter(bm => (bm.libraryItemId !== libraryItemId || bm.time !== time))
++  removeBookmark(libraryItemId, type, time) {
++    this.bookmarks = this.bookmarks.filter(bm => (bm.libraryItemId !== libraryItemId || bm.time !== time || bm.type !== type))
+   }
+ 
+   checkShouldHideSeriesFromContinueListening(seriesId) {
