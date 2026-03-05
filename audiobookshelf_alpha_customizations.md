@@ -18,6 +18,9 @@ This file documents the custom modifications made to the local audiobookshelf re
 13. **PR #5063:** IDOR Security Fixes - Patches API vulnerabilities preventing unauthorized manipulation of bookmarks, media progress, and listening sessions.
 14. **PR #4935:** Natural Volume Scaling - Adds a user setting for logarithmic volume scaling, making the volume slider feel more natural.
 15. **PR #4959:** Standardized Embedded Tags - When embedding metadata into MP4/M4B files, Audiobookshelf now strictly conforms to Mp3tag and Plex standards for maximum external compatibility.
+16. **PR #4797:** Auto-Match After Scan - Adds an option to automatically trigger a Quick Match with metadata providers immediately after a scheduled folder scan completes.
+17. **PR #4925:** Import .CUE Chapters - Adds a button to the Chapter Editor to easily import chapter timestamps and titles directly from standard `.cue` files.
+18. **PR #4970:** Share Page Visibility Fix - Small UX fix that ensures the download icon on a shared book page turns black if the book's cover art has a white background.
 
 ## Custom Features Developed
 
