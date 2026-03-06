@@ -1,5 +1,6 @@
 const Logger = require('../Logger')
 const Database = require('../Database')
+const Sequelize = require('sequelize')
 const axios = require('axios').default
 const { levenshteinDistance } = require('../utils/index')
 const audibleScraper = require('../utils/bay/audibleScraper')
@@ -27,9 +28,9 @@ class BayManager {
       where.category = category
     }
     if (search) {
-      where[Database.Sequelize.Op.or] = [
-        { title: { [Database.Sequelize.Op.like]: `%${search}%` } },
-        { author: { [Database.Sequelize.Op.like]: `%${search}%` } }
+      where[Sequelize.Op.or] = [
+        { title: { [Sequelize.Op.like]: `%${search}%` } },
+        { author: { [Sequelize.Op.like]: `%${search}%` } }
       ]
     }
 
@@ -63,7 +64,7 @@ class BayManager {
 
   async getAvailableCategories() {
     const categories = await Database.bayItemModel.findAll({
-      attributes: [[Database.Sequelize.fn('DISTINCT', Database.Sequelize.col('category')), 'category']],
+      attributes: [[Sequelize.fn('DISTINCT', Sequelize.col('category')), 'category']],
       raw: true
     })
     const list = categories.map(c => c.category).filter(Boolean).sort()
