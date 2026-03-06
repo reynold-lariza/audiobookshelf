@@ -3,13 +3,18 @@
     <div class="w-screen h-screen absolute inset-0 pointer-events-none" style="background: linear-gradient(180deg, rgba(0, 0, 0, 0) 0%, rgba(38, 38, 38, 1) 80%)"></div>
     <div class="absolute inset-0 w-screen h-dvh flex items-center justify-center z-10">
       <div class="w-full p-2 sm:p-4 md:p-8">
-        <div v-if="!isMobileLandscape" :style="{ width: coverWidth + 'px', height: coverHeight + 'px' }" class="mx-auto overflow-hidden rounded-xl my-2">
+        <div v-if="!isMobileLandscape" :style="{ width: coverWidth + 'px', height: coverHeight + 'px' }" class="mx-auto overflow-hidden rounded-xl my-4 relative group cursor-pointer shadow-2xl transition-transform hover:scale-[1.02] active:scale-[0.98]" @click="playPause">
           <img ref="coverImg" :src="coverUrl" class="object-contain w-full h-full" @load="coverImageLoaded" />
+          <div v-if="isPaused" class="absolute inset-0 flex items-center justify-center bg-black/20 group-hover:bg-black/40 transition-colors">
+            <div class="w-20 h-20 sm:w-24 sm:h-24 bg-accent rounded-full flex items-center justify-center shadow-xl text-primary transform transition-transform group-hover:scale-110">
+              <span class="material-symbols fill text-5xl sm:text-6xl">play_arrow</span>
+            </div>
+          </div>
         </div>
         <p class="text-2xl lg:text-3xl font-semibold text-center mb-1 line-clamp-2">{{ mediaItemShare.playbackSession.displayTitle || 'No title' }}</p>
         <p v-if="mediaItemShare.playbackSession.displayAuthor" class="text-lg lg:text-xl text-slate-400 font-semibold text-center mb-1 truncate">{{ mediaItemShare.playbackSession.displayAuthor }}</p>
 
-        <div class="w-full pt-16">
+        <div class="w-full pt-8 sm:pt-12">
           <player-ui ref="audioPlayer" :chapters="chapters" :current-chapter="currentChapter" :paused="isPaused" :loading="!hasLoaded" :is-podcast="false" hide-bookmarks hide-sleep-timer @playPause="playPause" @jumpForward="jumpForward" @jumpBackward="jumpBackward" @setVolume="setVolume" @setPlaybackRate="setPlaybackRate" @seek="seek" />
         </div>
 
