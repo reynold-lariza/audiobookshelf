@@ -1,4 +1,4 @@
-# Audiobookshelf Alpha Build (v2.33.0e) Customizations
+# Audiobookshelf Alpha Build (v2.33.0-e) Customizations
 
 This file documents the custom modifications made to the local audiobookshelf repository.
 
@@ -69,9 +69,9 @@ This file documents the custom modifications made to the local audiobookshelf re
 
 ### 4. Custom Version & Changelog
 *   **Modified Files:** `package.json`, `client/package.json`
-*   **Description:** Updated version to `2.33.0e` to ensure all custom migrations are triggered.
+*   **Description:** Updated version to `2.33.0-e` to ensure all custom migrations are triggered.
 *   **Modified File:** `client/plugins/version.js`
-*   **Description:** Intercepted the GitHub release check in `checkForUpdate`. Injected a custom alpha release object for `v2.33.0e` containing detailed markdown release notes, ensuring the UI changelog modal renders correctly instead of blank.
+*   **Description:** Intercepted the GitHub release check in `checkForUpdate`. Injected a custom alpha release object for `v2.33.0-e` containing detailed markdown release notes, ensuring the UI changelog modal renders correctly instead of blank.
 
 ### 5. Database Migration Fix (Podcast Filename Format)
 *   **Modified Files:** `server/migrations/`
@@ -87,5 +87,5 @@ This file documents the custom modifications made to the local audiobookshelf re
 
 ## Build and Deployment Details
 *   **Docker Image:** The image is built specifically for `linux/amd64` using `docker buildx` to ensure compatibility with the remote VM.
-*   **Image Name:** `audiobookshelf:v2.33.0e`
+*   **Image Name:** `audiobookshelf:v2.33.0-e`
 *   **Deployment:** Pushed directly to `app@10.0.1.123`.
