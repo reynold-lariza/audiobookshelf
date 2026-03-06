@@ -340,54 +340,66 @@ class LibraryItem extends Model {
 
     const shelves = []
 
-    const timed = async (loader) => {
+    const timed = async (loader, label) => {
       const start = Date.now()
-      const payload = await loader()
-      return {
-        payload,
-        elapsedSeconds: ((Date.now() - start) / 1000).toFixed(2)
+      try {
+        const payload = await loader()
+        return {
+          payload,
+          elapsedSeconds: ((Date.now() - start) / 1000).toFixed(2)
+        }
+      } catch (error) {
+        Logger.error(`[LibraryItem] Personalized shelf "${label}" failed:`, error)
+        return {
+          payload: { libraryItems: [], items: [], series: [], authors: [], count: 0 },
+          elapsedSeconds: 0
+        }
       }
     }
 
     // "Continue Listening" shelf
-    const itemsInProgressPayload = await libraryFilters.getMediaItemsInProgress(library, user, include, limit, false)
-    if (itemsInProgressPayload.items.length) {
-      const ebookOnlyItemsInProgress = itemsInProgressPayload.items.filter((li) => li.media.ebookFormat && !li.media.numTracks)
-      const audioItemsInProgress = itemsInProgressPayload.items.filter((li) => li.media.numTracks || li.mediaType === 'podcast')
+    try {
+      const itemsInProgressPayload = await libraryFilters.getMediaItemsInProgress(library, user, include, limit, false)
+      if (itemsInProgressPayload.items.length) {
+        const ebookOnlyItemsInProgress = itemsInProgressPayload.items.filter((li) => li.media.ebookFormat && !li.media.numTracks)
+        const audioItemsInProgress = itemsInProgressPayload.items.filter((li) => li.media.numTracks || li.mediaType === 'podcast')
 
-      if (audioItemsInProgress.length) {
-        shelves.push({
-          id: 'continue-listening',
-          label: 'Continue Listening',
-          labelStringKey: 'LabelContinueListening',
-          type: library.isPodcast ? 'episode' : 'book',
-          entities: audioItemsInProgress,
-          total: itemsInProgressPayload.count
-        })
-      }
+        if (audioItemsInProgress.length) {
+          shelves.push({
+            id: 'continue-listening',
+            label: 'Continue Listening',
+            labelStringKey: 'LabelContinueListening',
+            type: library.isPodcast ? 'episode' : 'book',
+            entities: audioItemsInProgress,
+            total: itemsInProgressPayload.count
+          })
+        }
 
-      if (ebookOnlyItemsInProgress.length) {
-        // "Continue Reading" shelf
-        shelves.push({
-          id: 'continue-reading',
-          label: 'Continue Reading',
-          labelStringKey: 'LabelContinueReading',
-          type: 'book',
-          entities: ebookOnlyItemsInProgress,
-          total: itemsInProgressPayload.count
-        })
+        if (ebookOnlyItemsInProgress.length) {
+          // "Continue Reading" shelf
+          shelves.push({
+            id: 'continue-reading',
+            label: 'Continue Reading',
+            labelStringKey: 'LabelContinueReading',
+            type: 'book',
+            entities: ebookOnlyItemsInProgress,
+            total: itemsInProgressPayload.count
+          })
+        }
       }
+      Logger.debug(`Loaded ${itemsInProgressPayload.items.length} of ${itemsInProgressPayload.count} items for "Continue Listening/Reading" in ${((Date.now() - fullStart) / 1000).toFixed(2)}s`)
+    } catch (error) {
+      Logger.error(`[LibraryItem] Continue Listening shelf failed:`, error)
     }
-    Logger.debug(`Loaded ${itemsInProgressPayload.items.length} of ${itemsInProgressPayload.count} items for "Continue Listening/Reading" in ${((Date.now() - fullStart) / 1000).toFixed(2)}s`)
 
     if (library.isBook) {
       const [continueSeriesResult, mostRecentResult, seriesMostRecentResult, discoverResult, mediaFinishedResult, newestAuthorsResult] = await Promise.all([
-        timed(() => libraryFilters.getLibraryItemsContinueSeries(library, user, include, limit)),
-        timed(() => libraryFilters.getLibraryItemsMostRecentlyAdded(library, user, include, limit)),
-        timed(() => libraryFilters.getSeriesMostRecentlyAdded(library, user, include, 5)),
-        timed(() => libraryFilters.getLibraryItemsToDiscover(library, user, include, limit)),
-        timed(() => libraryFilters.getMediaFinished(library, user, include, limit)),
-        timed(() => libraryFilters.getNewestAuthors(library, user, limit))
+        timed(() => libraryFilters.getLibraryItemsContinueSeries(library, user, include, limit), 'Continue Series'),
+        timed(() => libraryFilters.getLibraryItemsMostRecentlyAdded(library, user, include, limit), 'Recently Added'),
+        timed(() => libraryFilters.getSeriesMostRecentlyAdded(library, user, include, 5), 'Recent Series'),
+        timed(() => libraryFilters.getLibraryItemsToDiscover(library, user, include, limit), 'Discover'),
+        timed(() => libraryFilters.getMediaFinished(library, user, include, limit), 'Listen Again'),
+        timed(() => libraryFilters.getNewestAuthors(library, user, limit), 'Newest Authors')
       ])
 
       const continueSeriesPayload = continueSeriesResult.payload
@@ -492,10 +504,10 @@ class LibraryItem extends Model {
       Logger.debug(`Loaded ${newestAuthorsPayload.authors.length} of ${newestAuthorsPayload.count} authors for "Newest Authors" in ${newestAuthorsResult.elapsedSeconds}s`)
     } else if (library.isPodcast) {
       const [continueSeriesResult, newestEpisodesResult, mostRecentResult, mediaFinishedResult] = await Promise.all([
-        timed(() => libraryFilters.getPodcastEpisodesContinueSeries(library, user, limit)),
-        timed(() => libraryFilters.getNewestPodcastEpisodes(library, user, limit)),
-        timed(() => libraryFilters.getLibraryItemsMostRecentlyAdded(library, user, include, limit)),
-        timed(() => libraryFilters.getMediaFinished(library, user, include, limit))
+        timed(() => libraryFilters.getPodcastEpisodesContinueSeries(library, user, limit), 'Podcast Continue Series'),
+        timed(() => libraryFilters.getNewestPodcastEpisodes(library, user, limit), 'Newest Episodes'),
+        timed(() => libraryFilters.getLibraryItemsMostRecentlyAdded(library, user, include, limit), 'Recently Added'),
+        timed(() => libraryFilters.getMediaFinished(library, user, include, limit), 'Listen Again')
       ])
 
       const continueSeriesPayload = continueSeriesResult.payload
