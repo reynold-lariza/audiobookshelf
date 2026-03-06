@@ -8,7 +8,7 @@ const CATEGORY_MAP = {
   'Business & Careers': '18572029011',
   'Children\'s Audiobooks': '18572131011',
   'Computers & Technology': '18573211011',
-  'Cybersecurity': '18573211011',
+  'Cybersecurity': '18573211011', // Map to computers & tech
   'Education & Learning': '18573251011',
   'Health & Wellness': '18573331011',
   'History': '18573431011',
@@ -85,21 +85,35 @@ class AudibleScraper {
   }
 
   async scrapeSimilar(asin) {
-    const url = `https://www.audible.com/pd/${asin}?ipRedirectOverride=true`
-    Logger.debug(`[AudibleScraper] Scraping similar books for ASIN: ${asin}`)
+    // Attempt search instead of direct URL to avoid 404s
+    const url = `https://www.audible.com/search?keywords=${asin}&ipRedirectOverride=true`
+    Logger.debug(`[AudibleScraper] Searching for book to scrape similar: ${asin}`)
 
     try {
       const { data } = await axios.get(url, {
         headers: { 'User-Agent': this.userAgent }
       })
       const $ = cheerio.load(data)
+      
+      // Get the first product link
+      const firstLink = $('.bc-list-item.productListItem').first().find('h3.bc-heading a').attr('href')
+      if (!firstLink) {
+        Logger.warn(`[AudibleScraper] Could not find product page for ASIN: ${asin}`)
+        return []
+      }
+
+      const productUrl = 'https://www.audible.com' + firstLink + '&ipRedirectOverride=true'
+      const { data: productData } = await axios.get(productUrl, {
+        headers: { 'User-Agent': this.userAgent }
+      })
+      const $p = cheerio.load(productData)
       const results = []
 
-      $('[data-widget="recommendations"], .bc-carousel-slide').each((i, el) => {
-        const title = $(el).find('.bc-pub-block-title, h3').text().trim()
-        const author = $(el).find('.bc-pub-block-author, .authorLabel').text().replace('By:', '').trim()
-        const coverUrl = $(el).find('img').attr('src')
-        const link = $(el).find('a').attr('href')
+      $p('[data-widget="recommendations"], .bc-carousel-slide').each((i, el) => {
+        const title = $p(el).find('.bc-pub-block-title, h3').text().trim()
+        const author = $p(el).find('.bc-pub-block-author, .authorLabel').text().replace('By:', '').trim()
+        const coverUrl = $p(el).find('img').attr('src')
+        const link = $p(el).find('a').attr('href')
         
         if (title && author && link) {
           const sourceUrl = link.startsWith('http') ? link : 'https://www.audible.com' + link

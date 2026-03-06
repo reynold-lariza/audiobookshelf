@@ -96,7 +96,18 @@ class BayManager {
         await this.generateRecommendations(user)
       }
       
-      const categoriesToScan = ['Cybersecurity', 'Philosophy', 'Science Fiction & Fantasy', 'Self-Help', 'Business & Careers', 'History']
+      const categoriesToScan = [
+        'Cybersecurity', 
+        'Philosophy', 
+        'Science Fiction & Fantasy', 
+        'Self-Help', 
+        'Business & Careers', 
+        'History',
+        'Computers & Technology',
+        'Health & Wellness',
+        'Mystery, Thriller & Suspense',
+        'Science & Engineering'
+      ]
       for (const category of categoriesToScan) {
         await this.scrapeAudibleCategory(category, 'Best Sellers')
         await this.scrapeAudibleCategory(category, 'New Releases')
@@ -149,7 +160,7 @@ class BayManager {
 
   /**
    * Save or update an item in the Bay table.
-   * Also triggers an Audiobookbay search for magnet links.
+   * Cross-references with Audiobookbay in the background.
    */
   async saveBayItem(itemData) {
     try {
@@ -158,21 +169,35 @@ class BayManager {
       })
 
       if (!bayItem) {
-        // Find magnet link before creating
-        itemData.downloadUrl = await abbScraper.search(itemData.title, itemData.author)
-        itemData.lastScanned = new Date()
-        await Database.bayItemModel.create(itemData)
+        bayItem = await Database.bayItemModel.create({
+          ...itemData,
+          lastScanned: new Date()
+        })
       } else {
         // Update existing item
         bayItem.lastScanned = new Date()
-        // If no download link, try searching again
-        if (!bayItem.downloadUrl) {
-          bayItem.downloadUrl = await abbScraper.search(itemData.title, itemData.author)
-        }
         await bayItem.save()
+      }
+
+      // Trigger cross-reference search in background if not already found
+      if (!bayItem.downloadUrl) {
+        this.backgroundSearchABB(bayItem)
       }
     } catch (error) {
       Logger.error(`[BayManager] Error saving bay item "${itemData.title}":`, error.message)
+    }
+  }
+
+  async backgroundSearchABB(bayItem) {
+    try {
+      const downloadUrl = await abbScraper.search(bayItem.title, bayItem.author)
+      if (downloadUrl) {
+        bayItem.downloadUrl = downloadUrl
+        await bayItem.save()
+        Logger.debug(`[BayManager] Background ABB match found for "${bayItem.title}"`)
+      }
+    } catch (error) {
+      Logger.error(`[BayManager] Background ABB search failed for "${bayItem.title}":`, error.message)
     }
   }
 }
