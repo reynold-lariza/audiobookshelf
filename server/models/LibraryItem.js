@@ -417,6 +417,79 @@ class LibraryItem extends Model {
         })
       }
       Logger.debug(`Loaded ${mostRecentPayload.libraryItems.length} of ${mostRecentPayload.count} items for "Recently Added" in ${mostRecentResult.elapsedSeconds}s`)
+
+      const seriesMostRecentPayload = seriesMostRecentResult.payload
+      // "Recent Series" shelf
+      if (seriesMostRecentPayload.series.length) {
+        shelves.push({
+          id: 'recent-series',
+          label: 'Recent Series',
+          labelStringKey: 'LabelRecentSeries',
+          type: 'series',
+          entities: seriesMostRecentPayload.series,
+          total: seriesMostRecentPayload.count
+        })
+      }
+      Logger.debug(`Loaded ${seriesMostRecentPayload.series.length} of ${seriesMostRecentPayload.count} series for "Recent Series" in ${seriesMostRecentResult.elapsedSeconds}s`)
+
+      const discoverLibraryItemsPayload = discoverResult.payload
+      // "Discover" shelf
+      if (discoverLibraryItemsPayload.libraryItems.length) {
+        shelves.push({
+          id: 'discover',
+          label: 'Discover',
+          labelStringKey: 'LabelDiscover',
+          type: library.mediaType,
+          entities: discoverLibraryItemsPayload.libraryItems,
+          total: discoverLibraryItemsPayload.count
+        })
+      }
+      Logger.debug(`Loaded ${discoverLibraryItemsPayload.libraryItems.length} of ${discoverLibraryItemsPayload.count} items for "Discover" in ${discoverResult.elapsedSeconds}s`)
+
+      const mediaFinishedPayload = mediaFinishedResult.payload
+      // "Listen Again" shelf
+      if (mediaFinishedPayload.items.length) {
+        const ebookOnlyItemsInProgress = mediaFinishedPayload.items.filter((li) => li.media.ebookFormat && !li.media.numTracks)
+        const audioItemsInProgress = mediaFinishedPayload.items.filter((li) => li.media.numTracks || li.mediaType === 'podcast')
+
+        if (audioItemsInProgress.length) {
+          shelves.push({
+            id: 'listen-again',
+            label: 'Listen Again',
+            labelStringKey: 'LabelListenAgain',
+            type: library.isPodcast ? 'episode' : 'book',
+            entities: audioItemsInProgress,
+            total: mediaFinishedPayload.count
+          })
+        }
+
+        if (ebookOnlyItemsInProgress.length) {
+          // "Read Again" shelf
+          shelves.push({
+            id: 'read-again',
+            label: 'Read Again',
+            labelStringKey: 'LabelReadAgain',
+            type: 'book',
+            entities: ebookOnlyItemsInProgress,
+            total: mediaFinishedPayload.count
+          })
+        }
+      }
+      Logger.debug(`Loaded ${mediaFinishedPayload.items.length} of ${mediaFinishedPayload.count} items for "Listen/Read Again" in ${mediaFinishedResult.elapsedSeconds}s`)
+
+      const newestAuthorsPayload = newestAuthorsResult.payload
+      // "Newest Authors" shelf
+      if (newestAuthorsPayload.authors.length) {
+        shelves.push({
+          id: 'newest-authors',
+          label: 'Newest Authors',
+          labelStringKey: 'LabelNewestAuthors',
+          type: 'authors',
+          entities: newestAuthorsPayload.authors,
+          total: newestAuthorsPayload.count
+        })
+      }
+      Logger.debug(`Loaded ${newestAuthorsPayload.authors.length} of ${newestAuthorsPayload.count} authors for "Newest Authors" in ${newestAuthorsResult.elapsedSeconds}s`)
     } else if (library.isPodcast) {
       const [continueSeriesResult, newestEpisodesResult, mostRecentResult, mediaFinishedResult] = await Promise.all([
         timed(() => libraryFilters.getPodcastEpisodesContinueSeries(library, user, limit)),
