@@ -1639,6 +1639,32 @@ class LibraryController {
   }
 
   /**
+   * GET: /api/bay/cover-proxy
+   * Proxy external cover images
+   */
+  async getBayCoverProxy(req, res) {
+    const url = req.query.url
+    if (!url) return res.sendStatus(400)
+
+    try {
+      const axios = require('axios')
+      const response = await axios.get(url, {
+        responseType: 'stream',
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Referer': 'https://www.audible.com/'
+        }
+      })
+      res.setHeader('Content-Type', response.headers['content-type'])
+      res.setHeader('Cache-Control', 'public, max-age=86400') // 24h cache
+      response.data.pipe(res)
+    } catch (error) {
+      Logger.error(`[LibraryController] Cover proxy failed for ${url}:`, error.message)
+      res.sendStatus(500)
+    }
+  }
+
+  /**
    *
    * @param {RequestWithUser} req
    * @param {Response} res

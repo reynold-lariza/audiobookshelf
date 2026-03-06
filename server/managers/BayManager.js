@@ -153,6 +153,7 @@ class BayManager {
 
   async scrapeAudibleCategory(category, type) {
     const items = await audibleScraper.scrapeCategory(category, type)
+    Logger.info(`[BayManager] Scraped ${items.length} items for category "${category}" (${type})`)
     for (const item of items) {
       await this.saveBayItem(item)
     }

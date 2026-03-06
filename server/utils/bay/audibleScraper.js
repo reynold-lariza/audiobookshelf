@@ -58,12 +58,20 @@ class AudibleScraper {
         const title = $(el).find('h3.bc-heading a').text().trim()
         const author = $(el).find('.authorLabel').text().replace('By:', '').trim()
         const description = $(el).find('.descriptionLabel').text().trim()
-        const coverUrl = $(el).find('img.bc-image-inset').attr('src')
+        
+        // Try multiple image attributes due to lazy loading
+        const imgEl = $(el).find('img.bc-image-inset')
+        let coverUrl = imgEl.attr('data-src') || imgEl.attr('src') || imgEl.attr('data-lazy-src')
+        if (coverUrl && coverUrl.startsWith('//')) coverUrl = 'https:' + coverUrl
+        
         const link = $(el).find('h3.bc-heading a').attr('href')
         
         if (title && author && link) {
-          const sourceUrl = 'https://www.audible.com' + link
+          const sourceUrl = link.startsWith('http') ? link : 'https://www.audible.com' + link
           const asinMatch = sourceUrl.match(/[B0][A-Z0-9]{9}/i)
+          
+          Logger.debug(`[AudibleScraper] Found item: "${title}" with cover: ${coverUrl}`)
+          
           results.push({
             title,
             author,
@@ -153,12 +161,18 @@ class AudibleScraper {
         const title = $(el).find('h3.bc-heading a').text().trim()
         const author = $(el).find('.authorLabel').text().replace('By:', '').trim()
         const description = $(el).find('.descriptionLabel').text().trim()
-        const coverUrl = $(el).find('img.bc-image-inset').attr('src')
+
+        // Try multiple image attributes due to lazy loading
+        const imgEl = $(el).find('img.bc-image-inset')
+        let coverUrl = imgEl.attr('data-src') || imgEl.attr('src') || imgEl.attr('data-lazy-src')
+        if (coverUrl && coverUrl.startsWith('//')) coverUrl = 'https:' + coverUrl
+
         const link = $(el).find('h3.bc-heading a').attr('href')
-        
+
         if (title && author && link) {
-          const sourceUrl = 'https://www.audible.com' + link
+          const sourceUrl = link.startsWith('http') ? link : 'https://www.audible.com' + link
           const asinMatch = sourceUrl.match(/[B0][A-Z0-9]{9}/i)
+
           results.push({
             title,
             author,
@@ -170,7 +184,7 @@ class AudibleScraper {
             type: 'Search'
           })
         }
-      })
+        })
       return results
     } catch (error) {
       Logger.error(`[AudibleScraper] Search error for ${query}:`, error.message)

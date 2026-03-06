@@ -39,7 +39,10 @@
         <div v-else class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-x-4 gap-y-10 md:gap-x-8 md:gap-y-12">
           <div v-for="item in items" :key="item.id" class="w-full flex flex-col group">
             <div class="relative rounded-lg overflow-hidden shadow-xl bg-primary/20 aspect-3/4 transition-transform hover:scale-[1.03]">
-               <img :src="item.coverUrl" class="w-full h-full object-cover" />
+               <img v-if="item.proxyCoverUrl" :src="item.proxyCoverUrl" class="w-full h-full object-cover" @error="item.proxyCoverUrl = null" />
+               <div v-else class="w-full h-full flex items-center justify-center bg-primary/40">
+                 <span class="material-symbols text-4xl opacity-20">book</span>
+               </div>
                
                <!-- Owned Badge -->
                <div v-if="item.isOwned" class="absolute top-2 right-2 bg-success text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-md uppercase tracking-wider">
@@ -124,7 +127,13 @@ export default {
           q: this.searchQuery
         }
         const data = await this.$axios.$get(`/api/libraries/${this.libraryId}/bay`, { params })
-        this.items = data.items || []
+        this.items = (data.items || []).map(item => {
+          if (item.coverUrl) {
+            // Proxy the cover URL through our server to avoid CORS/Referrer issues
+            item.proxyCoverUrl = `/api/bay/cover-proxy?url=${encodeURIComponent(item.coverUrl)}`
+          }
+          return item
+        })
         this.categories = data.categories || []
         this.message = data.message || ''
       } catch (error) {
