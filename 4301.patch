@@ -1,0 +1,1215 @@
+From 42eb4e3f0411b16146dc27b65fb55b9c0afbd069 Mon Sep 17 00:00:00 2001
+From: tagmeh <tagmeh@gmail.com>
+Date: Fri, 16 May 2025 20:41:02 -0500
+Subject: [PATCH 1/7] Feature mostly implemented, has UI/CSS bug, not super
+ DRY, no tests.
+
+---
+ client/components/modals/item/tabs/Cover.vue  | 109 ++++++++++++++++--
+ .../components/modals/item/tabs/Cover.cy.js   |   8 ++
+ 2 files changed, 109 insertions(+), 8 deletions(-)
+ create mode 100644 client/cypress/tests/components/modals/item/tabs/Cover.cy.js
+
+diff --git a/client/components/modals/item/tabs/Cover.vue b/client/components/modals/item/tabs/Cover.vue
+index 17979f708..3cbc63a7e 100644
+--- a/client/components/modals/item/tabs/Cover.vue
++++ b/client/components/modals/item/tabs/Cover.vue
+@@ -1,9 +1,9 @@
+ <template>
+   <div class="w-full h-full overflow-hidden overflow-y-auto px-2 sm:px-4 py-6 relative">
+     <div class="flex flex-col sm:flex-row mb-4">
++      <!-- Current book cover -->
+       <div class="relative self-center md:self-start">
+         <covers-preview-cover :src="coverUrl" :width="120" :book-cover-aspect-ratio="bookCoverAspectRatio" />
+-
+         <!-- book cover overlay -->
+         <div v-if="media.coverPath" class="absolute top-0 left-0 w-full h-full z-10 opacity-0 hover:opacity-100 transition-opacity duration-100">
+           <div class="absolute top-0 left-0 w-full h-16 bg-linear-to-b from-black-600 to-transparent" />
+@@ -14,7 +14,10 @@
+           </div>
+         </div>
+       </div>
++
++      <!-- Contains Upload new cover and local covers -->
+       <div class="grow sm:pl-2 md:pl-6 sm:pr-2 mt-6 md:mt-0">
++        <!-- Upload new cover -->
+         <div class="flex items-center">
+           <div v-if="userCanUpload" class="w-10 md:w-40 pr-2 md:min-w-32">
+             <ui-file-input ref="fileInput" @change="fileUploadSelected">
+@@ -29,6 +32,7 @@
+           </form>
+         </div>
+ 
++        <!-- Locaal covers -->
+         <div v-if="localCovers.length" class="mb-4 mt-6 border-t border-b border-white/10">
+           <div class="flex items-center justify-center py-2">
+             <p>{{ localCovers.length }} local image{{ localCovers.length !== 1 ? 's' : '' }}</p>
+@@ -48,6 +52,8 @@
+         </div>
+       </div>
+     </div>
++
++    <!-- Search Cover Form -->
+     <form @submit.prevent="submitSearchForm">
+       <div class="flex flex-wrap sm:flex-nowrap items-center justify-start -mx-1">
+         <div class="w-48 grow p-1">
+@@ -62,12 +68,64 @@
+         <ui-btn class="mt-5 ml-1 md:min-w-24" :padding-x="4" type="submit">{{ $strings.ButtonSearch }}</ui-btn>
+       </div>
+     </form>
+-    <div v-if="hasSearched" class="flex items-center flex-wrap justify-center sm:max-h-80 sm:overflow-y-scroll mt-2 max-w-full">
++
++    <!-- Cover Search Results -->
++    <div v-if="hasSearched" class="flex flex-col items-center sm:max-h-80 sm:overflow-y-scroll mt-2 max-w-full">
+       <p v-if="!coversFound.length">{{ $strings.MessageNoCoversFound }}</p>
+-      <template v-for="cover in coversFound">
+-        <div :key="cover" class="m-0.5 mb-5 border-2 border-transparent hover:border-yellow-300 cursor-pointer" :class="cover === coverPath ? 'border-yellow-300' : ''" @click="updateCover(cover)">
+-          <covers-preview-cover :src="cover" :width="80" show-open-new-tab :book-cover-aspect-ratio="bookCoverAspectRatio" />
+-        </div>
++
++      <!-- Conditional Rendering Based on bookCoverAspectRatio -->
++      <template v-if="bookCoverAspectRatio === 1">
++        <!-- Square Covers First -->
++        <template v-if="squareCovers.length">
++          <div class="flex items-center flex-wrap justify-center">
++            <template v-for="cover in squareCovers">
++              <div :key="cover.src" class="m-0.5 mb-5 border-2 border-transparent hover:border-yellow-300 cursor-pointer" :class="cover.src === coverPath ? 'border-yellow-300' : ''" @click="updateCover(cover.src)">
++                <covers-preview-cover :src="cover.src" :width="80" show-open-new-tab :book-cover-aspect-ratio="bookCoverAspectRatio" />
++              </div>
++            </template>
++          </div>
++        </template>
++
++        <!-- Divider if there are rectangle covers -->
++        <div v-if="rectangleCovers.length" class="w-full border-b border-white/10 my-4"></div>
++
++        <!-- Rectangle Covers -->
++        <template v-if="rectangleCovers.length">
++          <div class="flex items-center flex-wrap justify-center">
++            <template v-for="cover in rectangleCovers">
++              <div :key="cover.src" class="m-0.5 mb-5 border-2 border-transparent hover:border-yellow-300 cursor-pointer" :class="cover.src === coverPath ? 'border-yellow-300' : ''" @click="updateCover(cover.src)">
++                <covers-preview-cover :src="cover.src" :width="80" show-open-new-tab :book-cover-aspect-ratio="bookCoverAspectRatio" />
++              </div>
++            </template>
++          </div>
++        </template>
++      </template>
++
++      <template v-else>
++        <!-- Rectangle Covers First -->
++        <template v-if="rectangleCovers.length">
++          <div class="flex items-center flex-wrap justify-center">
++            <template v-for="cover in rectangleCovers">
++              <div :key="cover.src" class="m-0.5 mb-5 border-2 border-transparent hover:border-yellow-300 cursor-pointer" :class="cover.src === coverPath ? 'border-yellow-300' : ''" @click="updateCover(cover.src)">
++                <covers-preview-cover :src="cover.src" :width="80" show-open-new-tab :book-cover-aspect-ratio="bookCoverAspectRatio" />
++              </div>
++            </template>
++          </div>
++        </template>
++
++        <!-- Divider if there are square covers -->
++        <div v-if="squareCovers.length" class="w-full border-b border-white/10 my-4"></div>
++
++        <!-- Square Covers -->
++        <template v-if="squareCovers.length">
++          <div class="flex items-center flex-wrap justify-center">
++            <template v-for="cover in squareCovers">
++              <div :key="cover.src" class="m-0.5 mb-5 border-2 border-transparent hover:border-yellow-300 cursor-pointer" :class="cover.src === coverPath ? 'border-yellow-300' : ''" @click="updateCover(cover.src)">
++                <covers-preview-cover :src="cover.src" :width="80" show-open-new-tab :book-cover-aspect-ratio="bookCoverAspectRatio" />
++              </div>
++            </template>
++          </div>
++        </template>
+       </template>
+     </div>
+ 
+@@ -92,7 +150,9 @@ export default {
+     libraryItem: {
+       type: Object,
+       default: () => {}
+-    }
++    },
++    coversFound: { type: Array, default: () => [] },
++    coverPath: { type: String, default: '' }
+   },
+   data() {
+     return {
+@@ -105,7 +165,8 @@ export default {
+       showLocalCovers: false,
+       previewUpload: null,
+       selectedFile: null,
+-      provider: 'google'
++      provider: 'google',
++      sortedCovers: []
+     }
+   },
+   watch: {
+@@ -186,6 +247,12 @@ export default {
+           _file.localPath = `${process.env.serverUrl}/api/items/${this.libraryItemId}/file/${file.ino}?token=${this.userToken}`
+           return _file
+         })
++    },
++    squareCovers() {
++      return this.sortedCovers.filter((cover) => cover.width === cover.height)
++    },
++    rectangleCovers() {
++      return this.sortedCovers.filter((cover) => cover.width !== cover.height)
+     }
+   },
+   methods: {
+@@ -304,7 +371,10 @@ export default {
+           console.error('Failed', error)
+           return []
+         })
++
+       this.coversFound = results
++      const images = await this.resolveImages()
++
+       this.isProcessing = false
+       this.hasSearched = true
+     },
+@@ -319,6 +389,29 @@ export default {
+         .finally(() => {
+           this.isProcessing = false
+         })
++    },
++    async resolveImages() {
++      const resolvedImages = await Promise.all(
++        this.coversFound.map((cover) => {
++          return new Promise((resolve) => {
++            const img = new Image()
++            img.src = cover
++            img.onload = () => {
++              resolve({ src: cover, width: img.width, height: img.height })
++            }
++          })
++        })
++      )
++      // Sort images: squares first, then rectangles by area
++      this.sortedCovers = resolvedImages.sort((a, b) => {
++        // Prioritize square images (-1 for square, 1 for non-square)
++        const squareComparison = (b.width === b.height) - (a.width === a.height)
++        if (squareComparison !== 0) return squareComparison
++
++        // Sub-sort by width (ascending order)
++        return a.width - b.width
++      })
++      return this.sortedCovers
+     }
+   }
+ }
+diff --git a/client/cypress/tests/components/modals/item/tabs/Cover.cy.js b/client/cypress/tests/components/modals/item/tabs/Cover.cy.js
+new file mode 100644
+index 000000000..c6c29ff7e
+--- /dev/null
++++ b/client/cypress/tests/components/modals/item/tabs/Cover.cy.js
+@@ -0,0 +1,8 @@
++import Cover from '@/components/modals/item/tabs/Cover.vu'
++
++describe('Cover', () => {
++  it('should render', () => {
++    // Still working the tests out.
++    cy.mount(Cover)
++  })
++})
+
+From a2c7d645445683cda3e8d683d69dcde4fde74f2a Mon Sep 17 00:00:00 2001
+From: tagmeh <tagmeh@gmail.com>
+Date: Wed, 6 Aug 2025 02:16:40 -0500
+Subject: [PATCH 2/7] Working 1.0. Removed duplicate api calls per image.
+ Attempted testing, removed, unable to figure out either testing option.
+
+---
+ client/components/covers/DisplayCover.vue    | 113 +++++++++++++++++++
+ client/components/covers/SortedCovers.vue    |  97 ++++++++++++++++
+ client/components/modals/item/tabs/Cover.vue |  86 ++++----------
+ 3 files changed, 229 insertions(+), 67 deletions(-)
+ create mode 100644 client/components/covers/DisplayCover.vue
+ create mode 100644 client/components/covers/SortedCovers.vue
+
+diff --git a/client/components/covers/DisplayCover.vue b/client/components/covers/DisplayCover.vue
+new file mode 100644
+index 000000000..c7c721a5f
+--- /dev/null
++++ b/client/components/covers/DisplayCover.vue
+@@ -0,0 +1,113 @@
++// Displays a book cover, given a cover image object with url, width, and height properties.
++//  It supports showing the cover in a specific aspect ratio, displaying resolution,
++//  and providing an option to open the cover in a new tab.
++// This component exists in order to avoid a second api call per image. Since the images are being queried and sorted on a parent component (Cover.vue).
++
++<template>
++  <div class="relative rounded-xs" :style="{ height: width * bookCoverAspectRatio + 'px', width: width + 'px', maxWidth: width + 'px', minWidth: width + 'px' }" @mouseover="isHovering = true" @mouseleave="isHovering = false">
++    <div class="w-full h-full relative overflow-hidden">
++      <div v-show="showCoverBg" class="absolute top-0 left-0 w-full h-full overflow-hidden rounded-xs bg-primary">
++        <div class="absolute cover-bg" ref="coverBg" />
++      </div>
++      <img ref="cover" :src="coverImage.url" class="w-full h-full absolute top-0 left-0" :class="showCoverBg ? 'object-contain' : 'object-fill'" @error="imageError" @load="imageLoaded" />
++
++      <a v-if="!imageFailed && showOpenNewTab && isHovering" :href="coverImage.url" @click.stop target="_blank" class="absolute bg-primary flex items-center justify-center shadow-xs rounded-full hover:scale-110 transform duration-100" :style="{ top: sizeMultiplier * 0.5 + 'rem', right: sizeMultiplier * 0.5 + 'rem', width: 2.5 * sizeMultiplier + 'rem', height: 2.5 * sizeMultiplier + 'rem' }">
++        <span class="material-symbols" :style="{ fontSize: sizeMultiplier * 1.75 + 'rem' }">open_in_new</span>
++      </a>
++    </div>
++
++    <div v-if="imageFailed" class="absolute top-0 left-0 right-0 bottom-0 w-full h-full bg-red-100" :style="{ padding: placeholderCoverPadding + 'rem' }">
++      <div class="w-full h-full border-2 border-error flex flex-col items-center justify-center">
++        <img v-if="width > 100" src="/Logo.png" class="mb-2" :style="{ height: 40 * sizeMultiplier + 'px' }" />
++        <p class="text-center text-error" :style="{ fontSize: invalidCoverFontSize + 'rem' }">Invalid Cover</p>
++      </div>
++    </div>
++
++    <p v-if="!imageFailed && showResolution && resolution" class="absolute -bottom-5 left-0 right-0 mx-auto text-xs text-gray-300 text-center">
++      {{ resolution }}
++    </p>
++  </div>
++</template>
++
++<script>
++export default {
++  props: {
++    coverImage: {
++      type: Object,
++      required: true,
++      validator: (value) => {
++        return value.url && value.width && value.height
++      }
++    },
++    width: {
++      type: Number,
++      default: 120
++    },
++    showOpenNewTab: Boolean,
++    bookCoverAspectRatio: Number,
++    showResolution: {
++      type: Boolean,
++      default: true
++    }
++  },
++  data() {
++    return {
++      imageFailed: false,
++      showCoverBg: false,
++      isHovering: false
++    }
++  },
++  watch: {
++    'coverImage.url': {
++      handler() {
++        this.imageFailed = false
++        this.calculateCoverBg()
++      }
++    }
++  },
++  computed: {
++    sizeMultiplier() {
++      return this.width / 120
++    },
++    invalidCoverFontSize() {
++      return Math.max(this.sizeMultiplier * 0.8, 0.5)
++    },
++    placeholderCoverPadding() {
++      return 0.8 * this.sizeMultiplier
++    },
++    resolution() {
++      return `${this.coverImage.width}×${this.coverImage.height}px`
++    }
++  },
++  methods: {
++    setCoverBg() {
++      if (this.$refs.coverBg) {
++        this.$refs.coverBg.style.backgroundImage = `url("${this.coverImage.url}")`
++      }
++    },
++    calculateCoverBg() {
++      const aspectRatio = this.coverImage.height / this.coverImage.width
++      const arDiff = Math.abs(aspectRatio - this.bookCoverAspectRatio)
++
++      // If image aspect ratio is <= 1.45 or >= 1.75 then use cover bg, otherwise stretch to fit
++      if (arDiff > 0.15) {
++        this.showCoverBg = true
++        this.$nextTick(this.setCoverBg)
++      } else {
++        this.showCoverBg = false
++      }
++    },
++    imageLoaded() {
++      this.imageFailed = false
++      this.calculateCoverBg()
++    },
++    imageError(err) {
++      console.error('ImgError', err)
++      this.imageFailed = true
++    }
++  },
++  mounted() {
++    this.calculateCoverBg()
++  }
++}
++</script>
+diff --git a/client/components/covers/SortedCovers.vue b/client/components/covers/SortedCovers.vue
+new file mode 100644
+index 000000000..4f75df7bb
+--- /dev/null
++++ b/client/components/covers/SortedCovers.vue
+@@ -0,0 +1,97 @@
++// This component sorts and displays book covers based on their aspect ratio.
++//  It separates covers into primary (preferred aspect ratio) and secondary (opposite aspect ratio) sections.
++//  Covers are displayed with options to select, view resolution, and open in a new tab.
++
++<template>
++  <div class="flex flex-col items-center sm:max-h-80 sm:overflow-y-scroll max-w-full">
++    <!-- Primary Covers Section (based on preferred aspect ratio) -->
++    <div v-if="primaryCovers.length" class="flex items-center flex-wrap justify-center">
++      <template v-for="cover in primaryCovers">
++        <div :key="cover.url" class="m-0.5 mb-5 border-2 border-transparent hover:border-yellow-300 cursor-pointer" :class="cover.url === selectedCover ? 'border-yellow-300' : ''" @click="$emit('select-cover', cover.url)">
++          <div class="h-24 bg-primary" :style="{ width: 96 / bookCoverAspectRatio + 'px' }">
++            <covers-display-cover :cover-image="cover" :width="96 / bookCoverAspectRatio" :book-cover-aspect-ratio="bookCoverAspectRatio" :show-resolution="true" :show-open-new-tab="true" />
++          </div>
++        </div>
++      </template>
++    </div>
++
++    <!-- Divider if both sections have covers -->
++    <div v-if="primaryCovers.length && secondaryCovers.length" class="w-full border-b border-white/10 my-4"></div>
++
++    <!-- Secondary Covers Section (opposite aspect ratio) -->
++    <div v-if="secondaryCovers.length" class="flex items-center flex-wrap justify-center">
++      <template v-for="cover in secondaryCovers">
++        <div :key="cover.url" class="m-0.5 mb-5 border-2 border-transparent hover:border-yellow-300 cursor-pointer" :class="cover.url === selectedCover ? 'border-yellow-300' : ''" @click="$emit('select-cover', cover.url)">
++          <div class="h-24 bg-primary" :style="{ width: 96 / bookCoverAspectRatio + 'px' }">
++            <covers-display-cover :cover-image="cover" :width="96 / bookCoverAspectRatio" :book-cover-aspect-ratio="bookCoverAspectRatio" :show-resolution="true" :show-open-new-tab="true" />
++          </div>
++        </div>
++      </template>
++    </div>
++  </div>
++</template>
++
++<script>
++import DisplayCover from './DisplayCover.vue'
++
++export default {
++  name: 'SortedCovers',
++  components: {
++    'covers-display-cover': DisplayCover
++  },
++  props: {
++    covers: {
++      type: Array,
++      required: true,
++      default: () => []
++    },
++    bookCoverAspectRatio: {
++      type: Number,
++      required: true
++    },
++    selectedCover: {
++      type: String,
++      default: ''
++    }
++  },
++  computed: {
++    // Sort covers by dimension and size
++    sortedCovers() {
++      return [...this.covers].sort((a, b) => {
++        // Sort by area (width * height)
++        return a.width * a.height - b.width * b.height
++      })
++    },
++    // Get square covers (width === height)
++    squareCovers() {
++      return this.sortedCovers.filter((cover) => cover.width === cover.height)
++    },
++    // Get rectangular covers (width !== height)
++    rectangleCovers() {
++      return this.sortedCovers.filter((cover) => cover.width !== cover.height)
++    },
++    // Determine primary covers based on preferred aspect ratio
++    primaryCovers() {
++      return this.bookCoverAspectRatio === 1 ? this.squareCovers : this.rectangleCovers
++    },
++    // Determine secondary covers (opposite of primary)
++    secondaryCovers() {
++      return this.bookCoverAspectRatio === 1 ? this.rectangleCovers : this.squareCovers
++    }
++  }
++}
++</script>
++
++<style scoped>
++/* Ensure proper height distribution */
++.cover-grid-container {
++  min-height: 200px;
++  height: auto;
++}
++
++@media (min-width: 640px) {
++  .cover-grid-container {
++    max-height: calc(100vh - 400px);
++  }
++}
++</style>
+diff --git a/client/components/modals/item/tabs/Cover.vue b/client/components/modals/item/tabs/Cover.vue
+index 3cbc63a7e..c0a1c2918 100644
+--- a/client/components/modals/item/tabs/Cover.vue
++++ b/client/components/modals/item/tabs/Cover.vue
+@@ -70,63 +70,9 @@
+     </form>
+ 
+     <!-- Cover Search Results -->
+-    <div v-if="hasSearched" class="flex flex-col items-center sm:max-h-80 sm:overflow-y-scroll mt-2 max-w-full">
+-      <p v-if="!coversFound.length">{{ $strings.MessageNoCoversFound }}</p>
+-
+-      <!-- Conditional Rendering Based on bookCoverAspectRatio -->
+-      <template v-if="bookCoverAspectRatio === 1">
+-        <!-- Square Covers First -->
+-        <template v-if="squareCovers.length">
+-          <div class="flex items-center flex-wrap justify-center">
+-            <template v-for="cover in squareCovers">
+-              <div :key="cover.src" class="m-0.5 mb-5 border-2 border-transparent hover:border-yellow-300 cursor-pointer" :class="cover.src === coverPath ? 'border-yellow-300' : ''" @click="updateCover(cover.src)">
+-                <covers-preview-cover :src="cover.src" :width="80" show-open-new-tab :book-cover-aspect-ratio="bookCoverAspectRatio" />
+-              </div>
+-            </template>
+-          </div>
+-        </template>
+-
+-        <!-- Divider if there are rectangle covers -->
+-        <div v-if="rectangleCovers.length" class="w-full border-b border-white/10 my-4"></div>
+-
+-        <!-- Rectangle Covers -->
+-        <template v-if="rectangleCovers.length">
+-          <div class="flex items-center flex-wrap justify-center">
+-            <template v-for="cover in rectangleCovers">
+-              <div :key="cover.src" class="m-0.5 mb-5 border-2 border-transparent hover:border-yellow-300 cursor-pointer" :class="cover.src === coverPath ? 'border-yellow-300' : ''" @click="updateCover(cover.src)">
+-                <covers-preview-cover :src="cover.src" :width="80" show-open-new-tab :book-cover-aspect-ratio="bookCoverAspectRatio" />
+-              </div>
+-            </template>
+-          </div>
+-        </template>
+-      </template>
+-
+-      <template v-else>
+-        <!-- Rectangle Covers First -->
+-        <template v-if="rectangleCovers.length">
+-          <div class="flex items-center flex-wrap justify-center">
+-            <template v-for="cover in rectangleCovers">
+-              <div :key="cover.src" class="m-0.5 mb-5 border-2 border-transparent hover:border-yellow-300 cursor-pointer" :class="cover.src === coverPath ? 'border-yellow-300' : ''" @click="updateCover(cover.src)">
+-                <covers-preview-cover :src="cover.src" :width="80" show-open-new-tab :book-cover-aspect-ratio="bookCoverAspectRatio" />
+-              </div>
+-            </template>
+-          </div>
+-        </template>
+-
+-        <!-- Divider if there are square covers -->
+-        <div v-if="squareCovers.length" class="w-full border-b border-white/10 my-4"></div>
+-
+-        <!-- Square Covers -->
+-        <template v-if="squareCovers.length">
+-          <div class="flex items-center flex-wrap justify-center">
+-            <template v-for="cover in squareCovers">
+-              <div :key="cover.src" class="m-0.5 mb-5 border-2 border-transparent hover:border-yellow-300 cursor-pointer" :class="cover.src === coverPath ? 'border-yellow-300' : ''" @click="updateCover(cover.src)">
+-                <covers-preview-cover :src="cover.src" :width="80" show-open-new-tab :book-cover-aspect-ratio="bookCoverAspectRatio" />
+-              </div>
+-            </template>
+-          </div>
+-        </template>
+-      </template>
++    <div v-if="hasSearched" class="mt-2">
++      <p v-if="!coversFound.length" class="text-center">{{ $strings.MessageNoCoversFound }}</p>
++      <covers-sorted-covers v-else :covers="sortedCovers" :book-cover-aspect-ratio="bookCoverAspectRatio" :selected-cover="coverPath" @select-cover="updateCover" />
+     </div>
+ 
+     <div v-if="previewUpload" class="absolute top-0 left-0 w-full h-full z-10 bg-bg p-8">
+@@ -391,26 +337,32 @@ export default {
+         })
+     },
+     async resolveImages() {
++      console.log(this.coversFound)
+       const resolvedImages = await Promise.all(
+         this.coversFound.map((cover) => {
+           return new Promise((resolve) => {
+             const img = new Image()
+             img.src = cover
+             img.onload = () => {
+-              resolve({ src: cover, width: img.width, height: img.height })
++              resolve({
++                url: cover,
++                width: img.width,
++                height: img.height
++              })
++            }
++            img.onerror = () => {
++              // Resolve with default dimensions if image fails to load
++              resolve({
++                url: cover,
++                width: 400,
++                height: 600
++              })
+             }
+           })
+         })
+       )
+-      // Sort images: squares first, then rectangles by area
+-      this.sortedCovers = resolvedImages.sort((a, b) => {
+-        // Prioritize square images (-1 for square, 1 for non-square)
+-        const squareComparison = (b.width === b.height) - (a.width === a.height)
+-        if (squareComparison !== 0) return squareComparison
+-
+-        // Sub-sort by width (ascending order)
+-        return a.width - b.width
+-      })
++      this.sortedCovers = resolvedImages
++      console.log('Resolved covers:', this.sortedCovers)
+       return this.sortedCovers
+     }
+   }
+
+From fc655bc0e29cacabbf6f264d4b50a82969a3e170 Mon Sep 17 00:00:00 2001
+From: tagmeh <tagmeh@gmail.com>
+Date: Wed, 6 Aug 2025 02:19:14 -0500
+Subject: [PATCH 3/7] Removed Cover.cy.js file. Wasn't able to figure out
+ cypress testing.
+
+---
+ .../cypress/tests/components/modals/item/tabs/Cover.cy.js | 8 --------
+ 1 file changed, 8 deletions(-)
+ delete mode 100644 client/cypress/tests/components/modals/item/tabs/Cover.cy.js
+
+diff --git a/client/cypress/tests/components/modals/item/tabs/Cover.cy.js b/client/cypress/tests/components/modals/item/tabs/Cover.cy.js
+deleted file mode 100644
+index c6c29ff7e..000000000
+--- a/client/cypress/tests/components/modals/item/tabs/Cover.cy.js
++++ /dev/null
+@@ -1,8 +0,0 @@
+-import Cover from '@/components/modals/item/tabs/Cover.vu'
+-
+-describe('Cover', () => {
+-  it('should render', () => {
+-    // Still working the tests out.
+-    cy.mount(Cover)
+-  })
+-})
+
+From faa0a833e2c254efc84780ac7933a07102569f9a Mon Sep 17 00:00:00 2001
+From: tagmeh <tagmeh@gmail.com>
+Date: Wed, 6 Aug 2025 02:20:26 -0500
+Subject: [PATCH 4/7] Removed console logs.
+
+---
+ client/components/modals/item/tabs/Cover.vue | 2 --
+ 1 file changed, 2 deletions(-)
+
+diff --git a/client/components/modals/item/tabs/Cover.vue b/client/components/modals/item/tabs/Cover.vue
+index c0a1c2918..db0336a84 100644
+--- a/client/components/modals/item/tabs/Cover.vue
++++ b/client/components/modals/item/tabs/Cover.vue
+@@ -337,7 +337,6 @@ export default {
+         })
+     },
+     async resolveImages() {
+-      console.log(this.coversFound)
+       const resolvedImages = await Promise.all(
+         this.coversFound.map((cover) => {
+           return new Promise((resolve) => {
+@@ -362,7 +361,6 @@ export default {
+         })
+       )
+       this.sortedCovers = resolvedImages
+-      console.log('Resolved covers:', this.sortedCovers)
+       return this.sortedCovers
+     }
+   }
+
+From 43ca263eac95d63a57e7fb5ba83f6c7f52945cce Mon Sep 17 00:00:00 2001
+From: tagmeh <tagmeh@gmail.com>
+Date: Wed, 6 Aug 2025 18:14:35 -0500
+Subject: [PATCH 5/7] Fixed rectangle book cover sub-sorting and conditional
+ divider display.
+
+---
+ client/components/covers/SortedCovers.vue | 13 +++++++++----
+ 1 file changed, 9 insertions(+), 4 deletions(-)
+
+diff --git a/client/components/covers/SortedCovers.vue b/client/components/covers/SortedCovers.vue
+index 4f75df7bb..9cb02fdb8 100644
+--- a/client/components/covers/SortedCovers.vue
++++ b/client/components/covers/SortedCovers.vue
+@@ -15,8 +15,8 @@
+       </template>
+     </div>
+ 
+-    <!-- Divider if both sections have covers -->
+-    <div v-if="primaryCovers.length && secondaryCovers.length" class="w-full border-b border-white/10 my-4"></div>
++    <!-- Divider only shows when there are covers in both sections -->
++    <div v-if="hasBothCoverTypes" class="w-full border-b border-white/10 my-4"></div>
+ 
+     <!-- Secondary Covers Section (opposite aspect ratio) -->
+     <div v-if="secondaryCovers.length" class="flex items-center flex-wrap justify-center">
+@@ -57,9 +57,10 @@ export default {
+   computed: {
+     // Sort covers by dimension and size
+     sortedCovers() {
++      // sort by height, then sub-sort by width
+       return [...this.covers].sort((a, b) => {
+-        // Sort by area (width * height)
+-        return a.width * a.height - b.width * b.height
++        // Sort by height first, then by width
++        return a.height - b.height || a.width - b.width
+       })
+     },
+     // Get square covers (width === height)
+@@ -77,6 +78,10 @@ export default {
+     // Determine secondary covers (opposite of primary)
+     secondaryCovers() {
+       return this.bookCoverAspectRatio === 1 ? this.rectangleCovers : this.squareCovers
++    },
++    // Check if we have both types of covers to show the divider
++    hasBothCoverTypes() {
++      return this.primaryCovers.length > 0 && this.secondaryCovers.length > 0
+     }
+   }
+ }
+
+From 34c4e7b08457bfa53ca4d0e7bfe4429007a1ce7d Mon Sep 17 00:00:00 2001
+From: tagmeh <tagmeh@gmail.com>
+Date: Fri, 8 Aug 2025 00:38:27 -0500
+Subject: [PATCH 6/7] Added cy-ids to divs for testing purposes. Added a basic
+ test for Cover.vue, and actual logic tests for SortedCovers.vue. All tests
+ are passing.
+
+---
+ client/components/covers/SortedCovers.vue     |   6 +-
+ client/components/modals/item/tabs/Cover.vue  |  39 ++---
+ .../components/covers/SortedCovers.cy.js      | 144 ++++++++++++++++++
+ .../components/modals/item/tab/Cover.cy.js    | 131 ++++++++++++++++
+ 4 files changed, 298 insertions(+), 22 deletions(-)
+ create mode 100644 client/cypress/tests/components/covers/SortedCovers.cy.js
+ create mode 100644 client/cypress/tests/components/modals/item/tab/Cover.cy.js
+
+diff --git a/client/components/covers/SortedCovers.vue b/client/components/covers/SortedCovers.vue
+index 9cb02fdb8..edc84db34 100644
+--- a/client/components/covers/SortedCovers.vue
++++ b/client/components/covers/SortedCovers.vue
+@@ -5,7 +5,7 @@
+ <template>
+   <div class="flex flex-col items-center sm:max-h-80 sm:overflow-y-scroll max-w-full">
+     <!-- Primary Covers Section (based on preferred aspect ratio) -->
+-    <div v-if="primaryCovers.length" class="flex items-center flex-wrap justify-center">
++    <div cy-id="primaryCoversSectionContainer" v-if="primaryCovers.length" class="flex items-center flex-wrap justify-center">
+       <template v-for="cover in primaryCovers">
+         <div :key="cover.url" class="m-0.5 mb-5 border-2 border-transparent hover:border-yellow-300 cursor-pointer" :class="cover.url === selectedCover ? 'border-yellow-300' : ''" @click="$emit('select-cover', cover.url)">
+           <div class="h-24 bg-primary" :style="{ width: 96 / bookCoverAspectRatio + 'px' }">
+@@ -16,10 +16,10 @@
+     </div>
+ 
+     <!-- Divider only shows when there are covers in both sections -->
+-    <div v-if="hasBothCoverTypes" class="w-full border-b border-white/10 my-4"></div>
++    <div cy-id="sortedCoversDivider" v-if="hasBothCoverTypes" class="w-full border-b border-white/10 my-4"></div>
+ 
+     <!-- Secondary Covers Section (opposite aspect ratio) -->
+-    <div v-if="secondaryCovers.length" class="flex items-center flex-wrap justify-center">
++    <div cy-id="secondaryCoversSectionContainer" v-if="secondaryCovers.length" class="flex items-center flex-wrap justify-center">
+       <template v-for="cover in secondaryCovers">
+         <div :key="cover.url" class="m-0.5 mb-5 border-2 border-transparent hover:border-yellow-300 cursor-pointer" :class="cover.url === selectedCover ? 'border-yellow-300' : ''" @click="$emit('select-cover', cover.url)">
+           <div class="h-24 bg-primary" :style="{ width: 96 / bookCoverAspectRatio + 'px' }">
+diff --git a/client/components/modals/item/tabs/Cover.vue b/client/components/modals/item/tabs/Cover.vue
+index db0336a84..0200c221a 100644
+--- a/client/components/modals/item/tabs/Cover.vue
++++ b/client/components/modals/item/tabs/Cover.vue
+@@ -2,7 +2,7 @@
+   <div class="w-full h-full overflow-hidden overflow-y-auto px-2 sm:px-4 py-6 relative">
+     <div class="flex flex-col sm:flex-row mb-4">
+       <!-- Current book cover -->
+-      <div class="relative self-center md:self-start">
++      <div cy-id="currentBookCover" class="relative self-center md:self-start">
+         <covers-preview-cover :src="coverUrl" :width="120" :book-cover-aspect-ratio="bookCoverAspectRatio" />
+         <!-- book cover overlay -->
+         <div v-if="media.coverPath" class="absolute top-0 left-0 w-full h-full z-10 opacity-0 hover:opacity-100 transition-opacity duration-100">
+@@ -16,10 +16,10 @@
+       </div>
+ 
+       <!-- Contains Upload new cover and local covers -->
+-      <div class="grow sm:pl-2 md:pl-6 sm:pr-2 mt-6 md:mt-0">
++      <div cy-id="uploadCoverAndLocalImages" class="grow sm:pl-2 md:pl-6 sm:pr-2 mt-6 md:mt-0">
+         <!-- Upload new cover -->
+-        <div class="flex items-center">
+-          <div v-if="userCanUpload" class="w-10 md:w-40 pr-2 md:min-w-32">
++        <div cy-id="uploadCoverForm" class="flex items-center">
++          <div cy-id="uploadCoverBtn" v-if="userCanUpload" class="w-10 md:w-40 pr-2 md:min-w-32">
+             <ui-file-input ref="fileInput" @change="fileUploadSelected">
+               <span class="hidden md:inline-block">{{ $strings.ButtonUploadCover }}</span>
+               <span class="material-symbols text-2xl inline-block md:hidden!">upload</span>
+@@ -33,16 +33,16 @@
+         </div>
+ 
+         <!-- Locaal covers -->
+-        <div v-if="localCovers.length" class="mb-4 mt-6 border-t border-b border-white/10">
+-          <div class="flex items-center justify-center py-2">
++        <div cy-id="localImagesContainer" v-if="localCovers.length" class="mb-4 mt-6 border-t border-b border-white/10">
++          <div cy-id="localImagesCountString" class="flex items-center justify-center py-2">
+             <p>{{ localCovers.length }} local image{{ localCovers.length !== 1 ? 's' : '' }}</p>
+             <div class="grow" />
+             <ui-btn small @click="showLocalCovers = !showLocalCovers">{{ showLocalCovers ? $strings.ButtonHide : $strings.ButtonShow }}</ui-btn>
+           </div>
+ 
+-          <div v-if="showLocalCovers" class="flex items-center justify-center flex-wrap pb-2">
++          <div cy-id="showLocalCovers" v-if="showLocalCovers" class="flex items-center justify-center flex-wrap pb-2">
+             <template v-for="localCoverFile in localCovers">
+-              <div :key="localCoverFile.ino" class="m-0.5 mb-5 border-2 border-transparent hover:border-yellow-300 cursor-pointer" :class="localCoverFile.metadata.path === coverPath ? 'border-yellow-300' : ''" @click="setCover(localCoverFile)">
++              <div cy-id="selectedLocalCover" :key="localCoverFile.ino" class="m-0.5 mb-5 border-2 border-transparent hover:border-yellow-300 cursor-pointer" :class="localCoverFile.metadata.path === coverPath ? 'border-yellow-300' : ''" @click="setCover(localCoverFile)">
+                 <div class="h-24 bg-primary" :style="{ width: 96 / bookCoverAspectRatio + 'px' }">
+                   <covers-preview-cover :src="localCoverFile.localPath" :width="96 / bookCoverAspectRatio" :book-cover-aspect-ratio="bookCoverAspectRatio" />
+                 </div>
+@@ -55,35 +55,36 @@
+ 
+     <!-- Search Cover Form -->
+     <form @submit.prevent="submitSearchForm">
+-      <div class="flex flex-wrap sm:flex-nowrap items-center justify-start -mx-1">
+-        <div class="w-48 grow p-1">
++      <div cy-id="bookCoverSearchForm" class="flex flex-wrap sm:flex-nowrap items-center justify-start -mx-1">
++        <div cy-id="providerDropDown" class="w-48 grow p-1">
+           <ui-dropdown v-model="provider" :items="providers" :label="$strings.LabelProvider" small />
+         </div>
+-        <div class="w-72 grow p-1">
++        <div cy-id="searchTitleTextInput" class="w-72 grow p-1">
+           <ui-text-input-with-label v-model="searchTitle" :label="searchTitleLabel" :placeholder="$strings.PlaceholderSearch" />
+         </div>
+-        <div v-show="provider != 'itunes' && provider != 'audiobookcovers'" class="w-72 grow p-1">
++        <div cy-id="searchAuthorTextInput" v-show="provider != 'itunes' && provider != 'audiobookcovers'" class="w-72 grow p-1">
+           <ui-text-input-with-label v-model="searchAuthor" :label="$strings.LabelAuthor" />
+         </div>
+-        <ui-btn class="mt-5 ml-1 md:min-w-24" :padding-x="4" type="submit">{{ $strings.ButtonSearch }}</ui-btn>
++        <ui-btn cy-id="bookCoverSearchBtn" class="mt-5 ml-1 md:min-w-24" :padding-x="4" type="submit">{{ $strings.ButtonSearch }}</ui-btn>
+       </div>
+     </form>
+ 
+     <!-- Cover Search Results -->
+-    <div v-if="hasSearched" class="mt-2">
++    <div cy-id="coverSearchResultsContainer" v-if="hasSearched" class="mt-2">
+       <p v-if="!coversFound.length" class="text-center">{{ $strings.MessageNoCoversFound }}</p>
+       <covers-sorted-covers v-else :covers="sortedCovers" :book-cover-aspect-ratio="bookCoverAspectRatio" :selected-cover="coverPath" @select-cover="updateCover" />
+     </div>
+ 
+-    <div v-if="previewUpload" class="absolute top-0 left-0 w-full h-full z-10 bg-bg p-8">
++    <!-- Local Image Upload Preview -->
++    <div cy-id="uploadPreviewImage" v-if="previewUpload" class="absolute top-0 left-0 w-full h-full z-10 bg-bg p-8">
+       <p class="text-lg">{{ $strings.HeaderPreviewCover }}</p>
+       <span class="absolute top-4 right-4 material-symbols text-2xl cursor-pointer" @click="resetCoverPreview">close</span>
+-      <div class="flex justify-center py-4">
++      <div cy-id="uploadPreviewImagePreview" class="flex justify-center py-4">
+         <covers-preview-cover :src="previewUpload" :width="240" :book-cover-aspect-ratio="bookCoverAspectRatio" />
+       </div>
+-      <div class="absolute bottom-0 right-0 flex py-4 px-5">
+-        <ui-btn :disabled="processingUpload" class="mx-2" @click="resetCoverPreview">{{ $strings.ButtonReset }}</ui-btn>
+-        <ui-btn :loading="processingUpload" color="bg-success" @click="submitCoverUpload">{{ $strings.ButtonUpload }}</ui-btn>
++      <div cy-id="uploadPreviewBtns" class="absolute bottom-0 right-0 flex py-4 px-5">
++        <ui-btn cy-id="uploadPreviewResetBtn" :disabled="processingUpload" class="mx-2" @click="resetCoverPreview">{{ $strings.ButtonReset }}</ui-btn>
++        <ui-btn cy-id="uploadPreviewUploadBtn" :loading="processingUpload" color="bg-success" @click="submitCoverUpload">{{ $strings.ButtonUpload }}</ui-btn>
+       </div>
+     </div>
+   </div>
+diff --git a/client/cypress/tests/components/covers/SortedCovers.cy.js b/client/cypress/tests/components/covers/SortedCovers.cy.js
+new file mode 100644
+index 000000000..8aff308d0
+--- /dev/null
++++ b/client/cypress/tests/components/covers/SortedCovers.cy.js
+@@ -0,0 +1,144 @@
++import SortedCovers from '@/components/covers/SortedCovers.vue'
++import DisplayCover from '@/components/covers/DisplayCover.vue'
++
++describe('SortedCovers.vue', () => {
++  const mockCovers = [
++    { url: 'cover1.jpg', width: 400, height: 400 }, // square
++    { url: 'cover2.jpg', width: 300, height: 450 }, // rectangle
++    { url: 'cover3.jpg', width: 200, height: 200 }, // square (smaller)
++    { url: 'cover4.jpg', width: 350, height: 500 } // rectangle
++  ]
++
++  const stubs = {
++    'covers-display-cover': DisplayCover
++  }
++
++  describe('with bookCoverAspectRatio = 1 (square preferred)', () => {
++    const mountOptions = {
++      propsData: {
++        covers: mockCovers,
++        bookCoverAspectRatio: 1,
++        selectedCover: ''
++      },
++      stubs
++    }
++
++    it('should render square covers in primary section', () => {
++      cy.mount(SortedCovers, mountOptions)
++
++      // The first section should contain the square covers
++      cy.get('.flex.items-center.flex-wrap.justify-center')
++        .first()
++        .within(() => {
++          // Should find 2 covers
++          cy.get('.cursor-pointer').should('have.length', 2)
++        })
++    })
++
++    it('should render rectangular covers in secondary section', () => {
++      cy.mount(SortedCovers, mountOptions)
++
++      // The second section should contain the rectangular covers
++      cy.get('.flex.items-center.flex-wrap.justify-center')
++        .eq(1)
++        .within(() => {
++          // Should find 2 covers
++          cy.get('.cursor-pointer').should('have.length', 2)
++        })
++    })
++
++    it('should show divider when both cover types exist', () => {
++      cy.mount(SortedCovers, mountOptions)
++      // Divider should be present
++      cy.get('.border-b.border-white\\/10').should('exist')
++    })
++  })
++
++  describe('with bookCoverAspectRatio = 0.6666 (rectangle preferred)', () => {
++    const mountOptions = {
++      propsData: {
++        covers: mockCovers,
++        bookCoverAspectRatio: 0.6666,
++        selectedCover: ''
++      },
++      stubs
++    }
++
++    it('should render rectangular covers in primary section', () => {
++      cy.mount(SortedCovers, mountOptions)
++
++      // The first section should contain the rectangular covers
++      cy.get('.flex.items-center.flex-wrap.justify-center')
++        .first()
++        .within(() => {
++          // Should find 2 covers
++          cy.get('.cursor-pointer').should('have.length', 2)
++        })
++    })
++  })
++
++  describe('cover type variations', () => {
++    it('should not show divider with only square covers', () => {
++      const onlySquareCovers = [
++        { url: 'cover1.jpg', width: 400, height: 400 },
++        { url: 'cover3.jpg', width: 200, height: 200 }
++      ]
++      cy.mount(SortedCovers, {
++        propsData: {
++          covers: onlySquareCovers,
++          bookCoverAspectRatio: 1,
++          selectedCover: ''
++        },
++        stubs
++      })
++      // Divider should not be present
++      cy.get('&sortedCoversDivider').should('not.exist')
++    })
++
++    it('should not show divider with only rectangular covers', () => {
++      const onlyRectCovers = [
++        { url: 'cover2.jpg', width: 300, height: 450 },
++        { url: 'cover4.jpg', width: 350, height: 500 }
++      ]
++      cy.mount(SortedCovers, {
++        propsData: {
++          covers: onlyRectCovers,
++          bookCoverAspectRatio: 1,
++          selectedCover: ''
++        },
++        stubs
++      })
++      // Divider should not be present
++      cy.get('&sortedCoversDivider').should('not.exist')
++    })
++  })
++
++  it('should emit select-cover event when cover is clicked', () => {
++    cy.mount(SortedCovers, {
++      propsData: {
++        covers: mockCovers,
++        bookCoverAspectRatio: 1, // square covers preferred and sorted first.
++        selectedCover: ''
++      },
++      stubs
++    })
++
++    // Spy on the emit event
++    const spy = cy.spy()
++    cy.mount(SortedCovers, {
++      propsData: { covers: mockCovers, bookCoverAspectRatio: 1 },
++      stubs,
++      listeners: {
++        'select-cover': spy
++      }
++    })
++
++    // Click the first cover and verify the event
++    cy.get('.cursor-pointer')
++      .first()
++      .click()
++      .then(() => {
++        expect(spy).to.be.calledWith(mockCovers[2].url) // Currently the third cover is the smallest square cover and would be first in the list given the aspect ratio
++      })
++  })
++})
+diff --git a/client/cypress/tests/components/modals/item/tab/Cover.cy.js b/client/cypress/tests/components/modals/item/tab/Cover.cy.js
+new file mode 100644
+index 000000000..077321f74
+--- /dev/null
++++ b/client/cypress/tests/components/modals/item/tab/Cover.cy.js
+@@ -0,0 +1,131 @@
++import Cover from '@/components/modals/item/tabs/Cover.vue'
++import PreviewCover from '@/components/covers/PreviewCover.vue'
++import SortedCovers from '@/components/covers/SortedCovers.vue'
++import Btn from '@/components/ui/Btn.vue'
++import FileInput from '@/components/ui/FileInput.vue'
++import TextareaInput from '@/components/ui/TextareaInput.vue'
++import Tooltip from '@/components/ui/Tooltip.vue'
++import Dropdown from '@/components/ui/Dropdown.vue'
++import TextInputWithLabel from '@/components/ui/TextInputWithLabel.vue'
++
++const sinon = Cypress.sinon
++
++describe('Cover.vue', () => {
++  const propsData = {
++    processing: false,
++    libraryItem: {
++      id: 'item-1',
++      media: {
++        coverPath: 'client\\cypress\\fixtures\\images\\cover1.jpg',
++        metadata: { title: 'Test Book', authorName: 'Test Author' }
++      },
++      mediaType: 'book',
++      libraryFiles: [
++        {
++          ino: '649644248522215267',
++          metadata: {
++            filename: 'cover1.jpg',
++            ext: '.jpg',
++            path: 'client\\cypress\\fixtures\\images\\cover1.jpg',
++            relPath: 'cover1.jpg',
++            size: 325531,
++            mtimeMs: 1638754803540,
++            ctimeMs: 1645978261003,
++            birthtimeMs: 0
++          },
++          addedAt: 1650621052495,
++          updatedAt: 1650621052495,
++          fileType: 'image'
++        }
++      ]
++    },
++    coversFound: [],
++    coverPath: 'client\\cypress\\fixtures\\images\\cover1.jpg'
++  }
++
++  const mocks = {
++    $strings: {
++      ButtonSearch: 'Search',
++      MessageNoCoversFound: 'No covers found',
++      HeaderPreviewCover: 'Preview Cover',
++      ButtonReset: 'Reset',
++      ButtonUpload: 'Upload',
++      ToastInvalidUrl: 'Invalid URL',
++      ToastCoverUpdateFailed: 'Cover update failed',
++      LabelSearchTitle: 'Title',
++      LabelSearchTerm: 'Search term',
++      LabelSearchTitleOrASIN: 'Title or ASIN'
++    },
++    $store: {
++      getters: {
++        'globals/getPlaceholderCoverSrc': 'placeholder.jpg',
++        'globals/getLibraryItemCoverSrcById': () => 'cover.jpg',
++        'libraries/getBookCoverAspectRatio': 1,
++        'user/getUserCanUpload': true,
++        'user/getUserCanDelete': true,
++        'user/getUserToken': 'token',
++        'scanners/providers': ['google'],
++        'scanners/coverOnlyProviders': [],
++        'scanners/podcastProviders': []
++      },
++      state: {
++        libraries: {
++          currentLibraryId: 'library-123'
++        },
++        scanners: {
++          providers: ['google'],
++          coverOnlyProviders: [],
++          podcastProviders: []
++        }
++      }
++    },
++    $eventBus: {
++      $on: () => {},
++      $off: () => {}
++    }
++  }
++
++  const stubs = {
++    'covers-preview-cover': PreviewCover,
++    'covers-sorted-covers': SortedCovers,
++    'ui-btn': Btn,
++    'ui-file-input': FileInput,
++    'ui-text-input': TextareaInput,
++    'ui-tooltip': Tooltip,
++    'ui-dropdown': Dropdown,
++    'ui-text-input-with-label': TextInputWithLabel
++  }
++
++  const mountOptions = {
++    propsData,
++    mocks,
++    stubs
++  }
++
++  it('should render the default component', () => {
++    // Pre-searched state
++
++    cy.mount(Cover, mountOptions)
++
++    cy.get('&currentBookCover').should('exist')
++
++    cy.get('&uploadCoverAndLocalImages').should('exist')
++    cy.get('&uploadCoverForm').should('exist')
++    cy.get('&uploadCoverBtn').should('exist')
++
++    cy.get('&localImagesContainer').should('exist')
++    cy.get('&localImagesCountString').should('exist')
++
++    // Click the button to show local covers
++    cy.get('&localImagesCountString').find('button').click()
++    cy.get('&showLocalCovers').should('exist')
++    // Assert the local cover image is displayed
++    cy.get('&showLocalCovers').find('img').should('have.attr', 'src').and('include', '/api/items/item-1/file/649644248522215267')
++
++    cy.get('&bookCoverSearchForm').should('exist')
++    cy.get('&providerDropDown').should('exist')
++    cy.get('&searchTitleTextInput').should('exist')
++    cy.get('&searchAuthorTextInput').should('exist')
++    cy.get('&bookCoverSearchBtn').should('exist')
++  })
++})
+
+From 46d56a8f74b3390854d80af99910ea5fc289589f Mon Sep 17 00:00:00 2001
+From: tagmeh <tagmeh@gmail.com>
+Date: Fri, 8 Aug 2025 01:43:21 -0500
+Subject: [PATCH 7/7] Added test to validate square/rectangle sub-sorting
+ (ascending)
+
+---
+ .../components/covers/SortedCovers.cy.js      | 62 +++++++++++++++----
+ 1 file changed, 51 insertions(+), 11 deletions(-)
+
+diff --git a/client/cypress/tests/components/covers/SortedCovers.cy.js b/client/cypress/tests/components/covers/SortedCovers.cy.js
+index 8aff308d0..58c3f8f05 100644
+--- a/client/cypress/tests/components/covers/SortedCovers.cy.js
++++ b/client/cypress/tests/components/covers/SortedCovers.cy.js
+@@ -3,10 +3,14 @@ import DisplayCover from '@/components/covers/DisplayCover.vue'
+ 
+ describe('SortedCovers.vue', () => {
+   const mockCovers = [
+-    { url: 'cover1.jpg', width: 400, height: 400 }, // square
+-    { url: 'cover2.jpg', width: 300, height: 450 }, // rectangle
+-    { url: 'cover3.jpg', width: 200, height: 200 }, // square (smaller)
+-    { url: 'cover4.jpg', width: 350, height: 500 } // rectangle
++    // 3 rectangles, 4 squares
++    { url: 'cover1.jpg', width: 400, height: 400 }, // middle square
++    { url: 'cover2.jpg', width: 300, height: 450 }, // smallest rectangle
++    { url: 'cover3.jpg', width: 200, height: 200 }, // smallest square
++    { url: 'cover4.jpg', width: 350, height: 500 }, // middle rectangle
++    { url: 'cover5.jpg', width: 500, height: 500 }, // largest square
++    { url: 'cover6.jpg', width: 600, height: 800 }, // largest rectangle
++    { url: 'cover7.jpg', width: 450, height: 450 } // middle2 square
+   ]
+ 
+   const stubs = {
+@@ -23,6 +27,42 @@ describe('SortedCovers.vue', () => {
+       stubs
+     }
+ 
++    it('should correctly sort covers by size within their categories', () => {
++      cy.mount(SortedCovers, mountOptions)
++
++      // Check primary section (squares)
++      cy.get('[cy-id="primaryCoversSectionContainer"] img')
++        .eq(0) // First section
++        .should('have.attr', 'src')
++        .and('include', 'cover3.jpg') // Smallest square first
++      cy.get('[cy-id="primaryCoversSectionContainer"] img')
++        .eq(1) // First section
++        .should('have.attr', 'src')
++        .and('include', 'cover1.jpg') // Middle square second
++      cy.get('[cy-id="primaryCoversSectionContainer"] img')
++        .eq(2) // First section
++        .should('have.attr', 'src')
++        .and('include', 'cover7.jpg') // Middle2 square third
++      cy.get('[cy-id="primaryCoversSectionContainer"] img')
++        .eq(3) // First section
++        .should('have.attr', 'src')
++        .and('include', 'cover5.jpg') // Largest square last
++
++      // Check secondary section (rectangles)
++      cy.get('[cy-id="secondaryCoversSectionContainer"] img')
++        .eq(0) // Second section
++        .should('have.attr', 'src')
++        .and('include', 'cover2.jpg') // Smallest rectangle first
++      cy.get('[cy-id="secondaryCoversSectionContainer"] img')
++        .eq(1) // Second section
++        .should('have.attr', 'src')
++        .and('include', 'cover4.jpg') // Middle rectangle second
++      cy.get('[cy-id="secondaryCoversSectionContainer"] img')
++        .eq(2) // Second section
++        .should('have.attr', 'src')
++        .and('include', 'cover6.jpg') // Largest rectangle last
++    })
++
+     it('should render square covers in primary section', () => {
+       cy.mount(SortedCovers, mountOptions)
+ 
+@@ -30,8 +70,8 @@ describe('SortedCovers.vue', () => {
+       cy.get('.flex.items-center.flex-wrap.justify-center')
+         .first()
+         .within(() => {
+-          // Should find 2 covers
+-          cy.get('.cursor-pointer').should('have.length', 2)
++          // Should find 3 covers
++          cy.get('.cursor-pointer').should('have.length', 4)
+         })
+     })
+ 
+@@ -42,15 +82,15 @@ describe('SortedCovers.vue', () => {
+       cy.get('.flex.items-center.flex-wrap.justify-center')
+         .eq(1)
+         .within(() => {
+-          // Should find 2 covers
+-          cy.get('.cursor-pointer').should('have.length', 2)
++          // Should find 3 covers
++          cy.get('.cursor-pointer').should('have.length', 3)
+         })
+     })
+ 
+     it('should show divider when both cover types exist', () => {
+       cy.mount(SortedCovers, mountOptions)
+       // Divider should be present
+-      cy.get('.border-b.border-white\\/10').should('exist')
++      cy.get('&sortedCoversDivider').should('exist')
+     })
+   })
+ 
+@@ -71,8 +111,8 @@ describe('SortedCovers.vue', () => {
+       cy.get('.flex.items-center.flex-wrap.justify-center')
+         .first()
+         .within(() => {
+-          // Should find 2 covers
+-          cy.get('.cursor-pointer').should('have.length', 2)
++          // Should find 3 covers
++          cy.get('.cursor-pointer').should('have.length', 3)
+         })
+     })
+   })

@@ -1,4 +1,4 @@
-# Audiobookshelf Alpha Build (v2.32.1d) Customizations
+# Audiobookshelf Alpha Build (v2.32.1e) Customizations
 
 This file documents the custom modifications made to the local audiobookshelf repository.
 
@@ -41,6 +41,11 @@ This file documents the custom modifications made to the local audiobookshelf re
 36. **PR #4594:** Podcast Metadata Embedding - Allows writing metadata changes back to podcast audio files.
 37. **PR #2464:** "Play Next" in Queue - Adds buttons to book cards and podcast episodes to instantly insert an item at the top of the playback queue.
 38. **Internal Fix:** Case-Insensitive Author/Series Scanner - Fixes a server crash (UniqueConstraintError) during library rescans when folder metadata differs in capitalization from the database.
+39. **PR #5004:** Token Refresh Grace Period - Fixes login race conditions on mobile/watch apps by adding a 1-minute grace period for token rotation.
+40. **PR #5084:** Bcrypt Cost Config - Increases default password security to modern standards and adds a configurable hashing cost.
+41. **PR #4978:** Podcast Continue Series - Adds the "Continue Series" shelf to podcasts, finding the correct next episode for both serial and episodic shows.
+42. **PR #4331:** Custom Podcast Filenames - Allows users to define filename templates for downloaded podcast episodes.
+43. **PR #5056:** Precise Log Timestamps - Adds minutes, seconds, and milliseconds to log filenames for easier debugging.
 
 ## Custom Features Developed
 
@@ -64,11 +69,11 @@ This file documents the custom modifications made to the local audiobookshelf re
 
 ### 4. Custom Version & Changelog
 *   **Modified Files:** `package.json`, `client/package.json`
-*   **Description:** Updated version to `2.32.1d`.
+*   **Description:** Updated version to `2.32.1e`.
 *   **Modified File:** `client/plugins/version.js`
-*   **Description:** Intercepted the GitHub release check in `checkForUpdate`. Injected a custom alpha release object for `v2.32.1d` containing detailed markdown release notes, ensuring the UI changelog modal renders correctly instead of blank.
+*   **Description:** Intercepted the GitHub release check in `checkForUpdate`. Injected a custom alpha release object for `v2.32.1e` containing detailed markdown release notes, ensuring the UI changelog modal renders correctly instead of blank.
 
 ## Build and Deployment Details
 *   **Docker Image:** The image is built specifically for `linux/amd64` using `docker buildx` to ensure compatibility with the remote VM.
-*   **Image Name:** `audiobookshelf:v2.32.1d`
+*   **Image Name:** `audiobookshelf:v2.32.1e`
 *   **Deployment:** Pushed directly to `app@10.0.1.123`.
