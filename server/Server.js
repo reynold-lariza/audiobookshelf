@@ -46,6 +46,8 @@ const passport = require('passport')
 const expressSession = require('express-session')
 const MemoryStore = require('./libs/memorystore')
 
+const BayManager = require('./managers/BayManager')
+
 class Server {
   constructor(SOURCE, PORT, HOST, CONFIG_PATH, METADATA_PATH, ROUTER_BASE_PATH) {
     this.Port = PORT
@@ -109,6 +111,7 @@ class Server {
     this.cronManager = new CronManager(this.podcastManager, this.playbackSessionManager)
     this.apiCacheManager = new ApiCacheManager()
     this.binaryManager = new BinaryManager()
+    this.bayManager = BayManager
 
     // Routers
     this.apiRouter = new ApiRouter(this)

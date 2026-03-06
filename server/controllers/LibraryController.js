@@ -1617,37 +1617,25 @@ class LibraryController {
    * @param {Response} res
    */
   async getBayItems(req, res) {
-    // Placeholder for Phase 1
-    // These categories are commonly found on Audible and Audiobooks.com
-    const commonCategories = [
-      'Arts & Entertainment',
-      'Biographies & Memoirs',
-      'Business & Careers',
-      'Children\'s Audiobooks',
-      'Computers & Technology',
-      'Cybersecurity',
-      'Education & Learning',
-      'Health & Wellness',
-      'History',
-      'Literature & Fiction',
-      'Mystery, Thriller & Suspense',
-      'Philosophy',
-      'Politics & Social Sciences',
-      'Religion & Spirituality',
-      'Romance',
-      'Science & Engineering',
-      'Science Fiction & Fantasy',
-      'Self-Help',
-      'Sports & Outdoors',
-      'Teen & Young Adult',
-      'Travel & Tourism'
-    ]
+    const category = req.query.category || 'All'
+    const search = req.query.q || ''
+    
+    // Trigger a refresh if it's been a while (optional, maybe Phase 3)
+    // For now, just return what's in the DB
+    const data = await require('../managers/BayManager').getBayItems(req.library.id, req.user, category, search)
+    res.json(data)
+  }
 
-    res.json({
-      items: [],
-      categories: commonCategories,
-      message: 'Bay scraper engine coming soon in Phase 2'
-    })
+  /**
+   * POST: /api/libraries/:id/bay/refresh
+   * Trigger a manual refresh of the discovery hub
+   */
+  async refreshBay(req, res) {
+    if (!req.user.isAdminOrUp) return res.sendStatus(403)
+    
+    // Run in background
+    require('../managers/BayManager').refreshBay(req.user)
+    res.sendStatus(200)
   }
 
   /**

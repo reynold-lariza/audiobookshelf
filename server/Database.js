@@ -157,14 +157,19 @@ class Database {
     return this.models.mediaItemShare
   }
 
-  /** @type {typeof import('./models/Device')} */
-  get deviceModel() {
-    return this.models.device
-  }
-
   /** @type {typeof import('./models/Review')} */
   get reviewModel() {
     return this.models.review
+  }
+
+  /** @type {typeof import('./models/BayItem')} */
+  get bayItemModel() {
+    return this.models.bayItem
+  }
+
+  /** @type {typeof import('./models/Setting')} */
+  get settingModel() {
+    return this.models.setting
   }
 
   /**
@@ -351,6 +356,7 @@ class Database {
     require('./models/CustomMetadataProvider').init(this.sequelize)
     require('./models/MediaItemShare').init(this.sequelize)
     require('./models/Review').init(this.sequelize)
+    require('./models/BayItem').init(this.sequelize)
 
     return this.sequelize.sync({ force, alter: false })
   }
