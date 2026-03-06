@@ -218,18 +218,26 @@ class BookScanner {
       if (bookMetadata[key] === undefined || (Array.isArray(bookMetadata[key]) && !bookMetadata[key].length)) continue
 
       if (key === 'authors') {
+        // Deduplicate scanned author names
+        const uniqueAuthorNames = [...new Set(bookMetadata.authors)]
+
         // Check for authors added
-        for (const authorName of bookMetadata.authors) {
-          if (!media.authors.some((au) => au.name.toLowerCase() === authorName.toLowerCase())) {
-            const existingAuthorId = await Database.getAuthorIdByName(libraryItemData.libraryId, authorName)
-            if (existingAuthorId) {
+        for (const authorName of uniqueAuthorNames) {
+          const existingAuthorId = await Database.getAuthorIdByName(libraryItemData.libraryId, authorName)
+
+          // If author exists in DB, check if they are already linked to this book by ID
+          if (existingAuthorId) {
+            if (!media.authors.some((au) => au.id === existingAuthorId)) {
               await Database.bookAuthorModel.create({
                 bookId: media.id,
                 authorId: existingAuthorId
               })
               libraryScan.addLog(LogLevel.DEBUG, `Updating book "${bookMetadata.title}" added author "${authorName}"`)
               authorsUpdated = true
-            } else {
+            }
+          } else {
+            // Author doesn't exist in DB at all, check if they are linked by name (case-insensitive)
+            if (!media.authors.some((au) => au.name.toLowerCase() === authorName.toLowerCase())) {
               const newAuthor = await Database.authorModel.create({
                 name: authorName,
                 lastFirst: Database.authorModel.getLastFirst(authorName),
@@ -244,7 +252,7 @@ class BookScanner {
         }
         // Check for authors removed
         for (const author of media.authors) {
-          if (!bookMetadata.authors.some((name) => name.toLowerCase() === author.name.toLowerCase())) {
+          if (!uniqueAuthorNames.some((name) => name.toLowerCase() === author.name.toLowerCase())) {
             await author.bookAuthor.destroy()
             libraryScan.addLog(LogLevel.DEBUG, `Updating book "${bookMetadata.title}" removed author "${author.name}"`)
             authorsUpdated = true
@@ -252,12 +260,21 @@ class BookScanner {
           }
         }
       } else if (key === 'series') {
+        // Deduplicate scanned series
+        const uniqueSeries = []
+        bookMetadata.series.forEach((s) => {
+          if (!uniqueSeries.some((us) => us.name.toLowerCase() === s.name.toLowerCase())) {
+            uniqueSeries.push(s)
+          }
+        })
+
         // Check for series added
-        for (const seriesObj of bookMetadata.series) {
-          const existingBookSeries = media.series.find((se) => se.name.toLowerCase() === seriesObj.name.toLowerCase())
-          if (!existingBookSeries) {
-            const existingSeriesId = await Database.getSeriesIdByName(libraryItemData.libraryId, seriesObj.name)
-            if (existingSeriesId) {
+        for (const seriesObj of uniqueSeries) {
+          const existingSeriesId = await Database.getSeriesIdByName(libraryItemData.libraryId, seriesObj.name)
+
+          if (existingSeriesId) {
+            const existingBookSeries = media.series.find((se) => se.id === existingSeriesId)
+            if (!existingBookSeries) {
               await Database.bookSeriesModel.create({
                 bookId: media.id,
                 seriesId: existingSeriesId,
@@ -265,27 +282,35 @@ class BookScanner {
               })
               libraryScan.addLog(LogLevel.DEBUG, `Updating book "${bookMetadata.title}" added series "${seriesObj.name}"${seriesObj.sequence ? ` with sequence "${seriesObj.sequence}"` : ''}`)
               seriesUpdated = true
-            } else {
+            } else if (seriesObj.sequence && existingBookSeries.bookSeries.sequence !== seriesObj.sequence) {
+              libraryScan.addLog(LogLevel.DEBUG, `Updating book "${bookMetadata.title}" series "${seriesObj.name}" sequence "${existingBookSeries.bookSeries.sequence || ''}" => "${seriesObj.sequence}"`)
+              seriesUpdated = true
+              existingBookSeries.bookSeries.sequence = seriesObj.sequence
+              await existingBookSeries.bookSeries.save()
+            }
+          } else {
+            // Series doesn't exist in DB, check if linked by name (case-insensitive)
+            const existingBookSeriesByName = media.series.find((se) => se.name.toLowerCase() === seriesObj.name.toLowerCase())
+            if (!existingBookSeriesByName) {
               const newSeries = await Database.seriesModel.create({
                 name: seriesObj.name,
                 nameIgnorePrefix: getTitleIgnorePrefix(seriesObj.name),
                 libraryId: libraryItemData.libraryId
               })
-              await media.addSeries(newSeries, { through: { sequence: seriesObj.sequence } })
+              await Database.bookSeriesModel.create({
+                bookId: media.id,
+                seriesId: newSeries.id,
+                sequence: seriesObj.sequence
+              })
               Database.addSeriesToFilterData(libraryItemData.libraryId, newSeries.name, newSeries.id)
               libraryScan.addLog(LogLevel.DEBUG, `Updating book "${bookMetadata.title}" added new series "${seriesObj.name}"${seriesObj.sequence ? ` with sequence "${seriesObj.sequence}"` : ''}`)
               seriesUpdated = true
             }
-          } else if (seriesObj.sequence && existingBookSeries.bookSeries.sequence !== seriesObj.sequence) {
-            libraryScan.addLog(LogLevel.DEBUG, `Updating book "${bookMetadata.title}" series "${seriesObj.name}" sequence "${existingBookSeries.bookSeries.sequence || ''}" => "${seriesObj.sequence}"`)
-            seriesUpdated = true
-            existingBookSeries.bookSeries.sequence = seriesObj.sequence
-            await existingBookSeries.bookSeries.save()
           }
         }
         // Check for series removed
         for (const series of media.series) {
-          if (!bookMetadata.series.some((se) => se.name.toLowerCase() === series.name.toLowerCase())) {
+          if (!uniqueSeries.some((se) => se.name.toLowerCase() === series.name.toLowerCase())) {
             await series.bookSeries.destroy()
             libraryScan.addLog(LogLevel.DEBUG, `Updating book "${bookMetadata.title}" removed series "${series.name}"`)
             seriesUpdated = true
