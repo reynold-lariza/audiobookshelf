@@ -23,6 +23,15 @@ class BayManager {
    * @returns {Promise<Object>}
    */
   async getBayItems(libraryId, user, category = 'All', search = '') {
+    // If search is provided, do a live search on Audible
+    if (search) {
+      Logger.info(`[BayManager] Performing live search for: "${search}"`)
+      const searchResults = await audibleScraper.search(search)
+      for (const item of searchResults) {
+        await this.saveBayItem(item)
+      }
+    }
+
     const where = {}
     if (category !== 'All') {
       where.category = category
@@ -51,7 +60,7 @@ class BayManager {
 
     const items = bayItems.map(bi => {
       const item = bi.toJSON()
-      item.isOwned = ownedAsins.includes(bi.asin) || ownedTitles.includes(bi.title.toLowerCase())
+      item.isOwned = (bi.asin && ownedAsins.includes(bi.asin)) || ownedTitles.includes(bi.title.toLowerCase())
       return item
     })
 

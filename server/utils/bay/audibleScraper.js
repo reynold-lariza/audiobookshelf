@@ -8,6 +8,7 @@ const CATEGORY_MAP = {
   'Business & Careers': '18572029011',
   'Children\'s Audiobooks': '18572131011',
   'Computers & Technology': '18573211011',
+  'Cybersecurity': '18573211011',
   'Education & Learning': '18573251011',
   'Health & Wellness': '18573331011',
   'History': '18573431011',
@@ -37,9 +38,9 @@ class AudibleScraper {
       return []
     }
 
-    let url = `https://www.audible.com/adbl/long/search?node=${categoryId}&sort=popularity-rank`
+    let url = `https://www.audible.com/adbl/long/search?node=${categoryId}&sort=popularity-rank&ipRedirectOverride=true`
     if (type === 'New Releases') {
-      url = `https://www.audible.com/adbl/long/search?node=${categoryId}&sort=publication_date`
+      url = `https://www.audible.com/adbl/long/search?node=${categoryId}&sort=publication_date&ipRedirectOverride=true`
     }
 
     Logger.debug(`[AudibleScraper] Scraping ${type} for ${categoryName}: ${url}`)
@@ -58,18 +59,18 @@ class AudibleScraper {
         const author = $(el).find('.authorLabel').text().replace('By:', '').trim()
         const description = $(el).find('.descriptionLabel').text().trim()
         const coverUrl = $(el).find('img.bc-image-inset').attr('src')
-        const sourceUrl = 'https://www.audible.com' + $(el).find('h3.bc-heading a').attr('href')
-        const asinMatch = sourceUrl.match(/\/pd\/([^/]+)\/([A-Z0-9]{10})/i)
-        const asin = asinMatch ? asinMatch[2] : null
-
-        if (title && author) {
+        const link = $(el).find('h3.bc-heading a').attr('href')
+        
+        if (title && author && link) {
+          const sourceUrl = 'https://www.audible.com' + link
+          const asinMatch = sourceUrl.match(/[B0][A-Z0-9]{9}/i)
           results.push({
             title,
             author,
             description,
             coverUrl,
             sourceUrl,
-            asin,
+            asin: asinMatch ? asinMatch[0] : null,
             category: categoryName,
             type
           })
@@ -84,7 +85,7 @@ class AudibleScraper {
   }
 
   async scrapeSimilar(asin) {
-    const url = `https://www.audible.com/pd/${asin}`
+    const url = `https://www.audible.com/pd/${asin}?ipRedirectOverride=true`
     Logger.debug(`[AudibleScraper] Scraping similar books for ASIN: ${asin}`)
 
     try {
@@ -94,22 +95,21 @@ class AudibleScraper {
       const $ = cheerio.load(data)
       const results = []
 
-      // Look for "Listeners also enjoyed" section
-      // Note: Selector might change based on Audible's A/B testing
-      $('.bc-carousel-slide').each((i, el) => {
-        const title = $(el).find('.bc-pub-block-title').text().trim()
-        const author = $(el).find('.bc-pub-block-author').text().trim()
+      $('[data-widget="recommendations"], .bc-carousel-slide').each((i, el) => {
+        const title = $(el).find('.bc-pub-block-title, h3').text().trim()
+        const author = $(el).find('.bc-pub-block-author, .authorLabel').text().replace('By:', '').trim()
         const coverUrl = $(el).find('img').attr('src')
-        const sourceUrl = $(el).find('a').attr('href') ? 'https://www.audible.com' + $(el).find('a').attr('href') : null
+        const link = $(el).find('a').attr('href')
         
-        if (title && author && sourceUrl) {
-          const asinMatch = sourceUrl.match(/\/pd\/([^/]+)\/([A-Z0-9]{10})/i)
+        if (title && author && link) {
+          const sourceUrl = link.startsWith('http') ? link : 'https://www.audible.com' + link
+          const asinMatch = sourceUrl.match(/[B0][A-Z0-9]{9}/i)
           results.push({
             title,
             author,
             coverUrl,
             sourceUrl,
-            asin: asinMatch ? asinMatch[2] : null,
+            asin: asinMatch ? asinMatch[0] : null,
             type: 'Recommendation'
           })
         }
@@ -118,6 +118,48 @@ class AudibleScraper {
       return results
     } catch (error) {
       Logger.error(`[AudibleScraper] Error scraping similar for ${asin}:`, error.message)
+      return []
+    }
+  }
+
+  async search(query) {
+    const url = `https://www.audible.com/search?keywords=${encodeURIComponent(query)}&ipRedirectOverride=true`
+    Logger.debug(`[AudibleScraper] Live search: ${url}`)
+
+    try {
+      const { data } = await axios.get(url, {
+        headers: { 'User-Agent': this.userAgent }
+      })
+      const $ = cheerio.load(data)
+      const results = []
+
+      $('.bc-list-item.productListItem').each((i, el) => {
+        if (i >= 10) return
+
+        const title = $(el).find('h3.bc-heading a').text().trim()
+        const author = $(el).find('.authorLabel').text().replace('By:', '').trim()
+        const description = $(el).find('.descriptionLabel').text().trim()
+        const coverUrl = $(el).find('img.bc-image-inset').attr('src')
+        const link = $(el).find('h3.bc-heading a').attr('href')
+        
+        if (title && author && link) {
+          const sourceUrl = 'https://www.audible.com' + link
+          const asinMatch = sourceUrl.match(/[B0][A-Z0-9]{9}/i)
+          results.push({
+            title,
+            author,
+            description,
+            coverUrl,
+            sourceUrl,
+            asin: asinMatch ? asinMatch[0] : null,
+            category: 'Search Result',
+            type: 'Search'
+          })
+        }
+      })
+      return results
+    } catch (error) {
+      Logger.error(`[AudibleScraper] Search error for ${query}:`, error.message)
       return []
     }
   }
