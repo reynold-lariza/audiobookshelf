@@ -58,7 +58,7 @@ export async function checkForUpdate() {
   const releases = await getReleases()
 
   // Inject Custom Alpha/Beta Release
-  const isCustomBuild = packagejson.version.match(/[a-e]$/)
+  const isCustomBuild = packagejson.version.match(/[a-z]$/)
   if (isCustomBuild) {
     releases.unshift({
       name: `v${packagejson.version} (Custom Build)`,
