@@ -77,6 +77,14 @@ This file documents the custom modifications made to the local audiobookshelf re
 *   **Modified Files:** `server/migrations/`
 *   **Description:** Renamed several PR-introduced migrations (like the podcast filename format migration) to `v2.33.0` to ensure they are properly executed by the MigrationManager, fixing the "no such column" database errors.
 
+### 6. Public Share Page UX Overhaul
+*   **Modified File:** `client/pages/share/_slug.vue`
+*   **Description:** Improved the mobile/iPad experience for shared items. Added a prominent Play button overlay on the cover art and made the entire cover image clickable to toggle play/pause.
+
+### 7. Home Page Shelf Resilience
+*   **Modified File:** `server/models/LibraryItem.js`
+*   **Description:** Added advanced error handling and logging to the personalized shelf loading logic. If one shelf (e.g., "Discover") fails due to a complex query, the rest of the home page will now still load correctly, and detailed diagnostic logs are provided.
+
 ## Build and Deployment Details
 *   **Docker Image:** The image is built specifically for `linux/amd64` using `docker buildx` to ensure compatibility with the remote VM.
 *   **Image Name:** `audiobookshelf:v2.33.0d`
