@@ -62,15 +62,22 @@ since we don't have access to the actual elements in this component
 
 2. v-deep allows these to take effect on the content passed in to the v-html in the div above
 */
-@reference "tailwindcss";
-
-.custom-text ::v-deep > h2 {
-  @apply text-lg font-bold;
+.custom-text ::v-deep h2 {
+  font-size: 1.125rem;
+  font-weight: 700;
+  padding-bottom: 0.5rem;
 }
-.custom-text ::v-deep > h3 {
-  @apply text-lg font-bold;
+.custom-text ::v-deep h3 {
+  font-size: 1.125rem;
+  font-weight: 700;
+  padding-bottom: 0.25rem;
 }
-.custom-text ::v-deep > ul {
-  @apply list-disc list-inside pb-4;
+.custom-text ::v-deep ul {
+  list-style-type: disc;
+  list-style-position: inside;
+  padding-bottom: 1rem;
+}
+.custom-text ::v-deep li {
+  padding-bottom: 0.25rem;
 }
 </style>
