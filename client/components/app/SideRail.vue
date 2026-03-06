@@ -85,9 +85,17 @@
       <nuxt-link v-if="isBookLibrary && userIsAdminOrUp" :to="`/library/${currentLibraryId}/stats`" class="w-full h-20 flex flex-col items-center justify-center text-white/80 border-b border-primary/70 hover:bg-primary cursor-pointer relative" :class="isStatsPage ? 'bg-primary/80' : 'bg-bg/60'">
         <span class="material-symbols text-2xl">&#xf190;</span>
 
-        <p class="pt-1 text-center leading-4" style="font-size: 0.9rem">{{ $strings.ButtonStats }}</p>
+        <p class="pt-1.5 text-center leading-4" style="font-size: 0.9rem">{{ $strings.ButtonStats }}</p>
 
         <div v-show="isStatsPage" class="h-full w-0.5 bg-yellow-400 absolute top-0 left-0" />
+      </nuxt-link>
+
+      <nuxt-link v-if="isBookLibrary && userIsAdminOrUp" :to="`/library/${currentLibraryId}/bay`" class="w-full h-20 flex flex-col items-center justify-center text-white/80 border-b border-primary/70 hover:bg-primary cursor-pointer relative" :class="isBayPage ? 'bg-primary/80' : 'bg-bg/60'">
+        <span class="material-symbols text-2xl">anchor</span>
+
+        <p class="pt-1.5 text-center leading-4" style="font-size: 0.9rem">Bay</p>
+
+        <div v-show="isBayPage" class="h-full w-0.5 bg-yellow-400 absolute top-0 left-0" />
       </nuxt-link>
 
       <nuxt-link v-if="isPodcastLibrary && userIsAdminOrUp" :to="`/library/${currentLibraryId}/podcast/search`" class="w-full h-20 flex flex-col items-center justify-center text-white/80 border-b border-primary/70 hover:bg-primary cursor-pointer relative" :class="isPodcastSearchPage ? 'bg-primary/80' : 'bg-bg/60'">
@@ -199,6 +207,9 @@ export default {
     },
     isStatsPage() {
       return this.$route.name === 'library-library-stats'
+    },
+    isBayPage() {
+      return this.$route.name === 'library-library-bay'
     },
     libraryBookshelfPage() {
       return this.$route.name === 'library-library-bookshelf-id'

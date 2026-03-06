@@ -31,6 +31,10 @@
         <p v-if="isAuthorsPage" class="text-sm">{{ $strings.ButtonAuthors }}</p>
         <span v-else class="material-symbols text-lg">groups</span>
       </nuxt-link>
+      <nuxt-link v-if="isBookLibrary && userIsAdminOrUp" :to="`/library/${currentLibraryId}/bay`" class="grow h-full flex justify-center items-center" :class="isBayPage ? 'bg-primary/80' : 'bg-primary/40'">
+        <p v-if="isBayPage" class="text-sm">Bay</p>
+        <span v-else class="material-symbols text-lg">anchor</span>
+      </nuxt-link>
       <nuxt-link v-if="isPodcastLibrary && userIsAdminOrUp" :to="`/library/${currentLibraryId}/podcast/search`" class="grow h-full flex justify-center items-center" :class="isPodcastSearchPage ? 'bg-primary/80' : 'bg-primary/40'">
         <p class="text-sm">{{ $strings.ButtonAdd }}</p>
       </nuxt-link>
@@ -283,6 +287,9 @@ export default {
     },
     isAuthorsPage() {
       return this.page === 'authors'
+    },
+    isBayPage() {
+      return this.page === 'bay'
     },
     numShowing() {
       return this.totalEntities

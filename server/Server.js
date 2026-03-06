@@ -393,6 +393,7 @@ class Server {
         '/library/:library/authors',
         '/library/:library/narrators',
         '/library/:library/stats',
+        '/library/:library/bay',
         '/library/:library/ratings',
         '/library/:library/series/:id?',
         '/library/:library/podcast/search',

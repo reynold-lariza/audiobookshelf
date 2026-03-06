@@ -1610,6 +1610,47 @@ class LibraryController {
   }
 
   /**
+   * GET: /api/libraries/:id/bay
+   * Get latest releases from Audible and Audiobooks.com
+   *
+   * @param {LibraryControllerRequest} req
+   * @param {Response} res
+   */
+  async getBayItems(req, res) {
+    // Placeholder for Phase 1
+    // These categories are commonly found on Audible and Audiobooks.com
+    const commonCategories = [
+      'Arts & Entertainment',
+      'Biographies & Memoirs',
+      'Business & Careers',
+      'Children\'s Audiobooks',
+      'Computers & Technology',
+      'Cybersecurity',
+      'Education & Learning',
+      'Health & Wellness',
+      'History',
+      'Literature & Fiction',
+      'Mystery, Thriller & Suspense',
+      'Philosophy',
+      'Politics & Social Sciences',
+      'Religion & Spirituality',
+      'Romance',
+      'Science & Engineering',
+      'Science Fiction & Fantasy',
+      'Self-Help',
+      'Sports & Outdoors',
+      'Teen & Young Adult',
+      'Travel & Tourism'
+    ]
+
+    res.json({
+      items: [],
+      categories: commonCategories,
+      message: 'Bay scraper engine coming soon in Phase 2'
+    })
+  }
+
+  /**
    *
    * @param {RequestWithUser} req
    * @param {Response} res
