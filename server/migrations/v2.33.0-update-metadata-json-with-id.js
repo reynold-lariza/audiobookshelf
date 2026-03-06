@@ -18,7 +18,14 @@ const loggerPrefix = `[${migrationVersion} migration]`
  * @param {MigrationOptions} options - an object containing the migration context.
  * @returns {Promise<void>} - A promise that resolves when the migration is complete.
  */
-async function up({ context: { logger } }) {
+async function up(options) {
+  const logger = options.context ? options.context.logger : options.logger
+  if (!logger) {
+    console.log(`${loggerPrefix} UPGRADE BEGIN: ${migrationName}`)
+    console.log(`${loggerPrefix} Deferring metadata file updates to post-migration logic in Database.js`)
+    console.log(`${loggerPrefix} UPGRADE END: ${migrationName}`)
+    return
+  }
   logger.info(`${loggerPrefix} UPGRADE BEGIN: ${migrationName}`)
   logger.info(`${loggerPrefix} Deferring metadata file updates to post-migration logic in Database.js`)
   logger.info(`${loggerPrefix} UPGRADE END: ${migrationName}`)
@@ -28,7 +35,9 @@ async function up({ context: { logger } }) {
  * @param {MigrationOptions} options - an object containing the migration context.
  * @returns {Promise<void>} - A promise that resolves when the migration is complete.
  */
-async function down({ context: { logger } }) {
+async function down(options) {
+  const logger = options.context ? options.context.logger : options.logger
+  if (!logger) return
   logger.info(`${loggerPrefix} DOWNGRADE BEGIN: ${migrationName}`)
   logger.info(`${loggerPrefix} DOWNGRADE END: ${migrationName}`)
 }
