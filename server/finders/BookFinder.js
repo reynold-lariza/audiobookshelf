@@ -458,9 +458,13 @@ class BookFinder {
 
       if ((isAudibleProvider || provider === "musicbrainz") && libraryItemDurationMinutes) {
         books.sort((a, b) => {
+          const aHasDuration = Number.isFinite(a.duration) && a.duration > 0
+          const bHasDuration = Number.isFinite(b.duration) && b.duration > 0
+          if (aHasDuration !== bHasDuration) return aHasDuration ? -1 : 1
+
           if (a.matchConfidence == b.matchConfidence) {
-            const aDuration = a.duration || Number.POSITIVE_INFINITY
-            const bDuration = b.duration || Number.POSITIVE_INFINITY
+            const aDuration = aHasDuration ? a.duration : Number.POSITIVE_INFINITY
+            const bDuration = bHasDuration ? b.duration : Number.POSITIVE_INFINITY
             const aDurationDiff = Math.abs(aDuration - libraryItemDurationMinutes)
             const bDurationDiff = Math.abs(bDuration - libraryItemDurationMinutes)
             return aDurationDiff - bDurationDiff
